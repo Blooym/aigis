@@ -1,10 +1,14 @@
 [package]
+version = "0.1.0"
 name = "aigis-bin"
 description = "Binary for Aigis, a simple and configurable content proxy."
-version = "0.1.0"
-edition = "2021"
-rust-version = "1.74"
 authors = ["Blooym"]
+categories = ["web-programming::http-server", "multimedia:images"]
+license = "MIT OR Apache-2.0"
+keywords = ["proxy"]
+repository = "https://github.com/Blooym/aigis"
+rust-version = "1.74"
+edition = "2021"
 
 [workspace]
 members = ["crates/core"]
@@ -28,7 +32,7 @@ cache-moka = ["aigis/cache-moka"]
 
 [dependencies]
 anyhow = "1.0.81"
-aigis = { path = "crates/core", default-features = false }
+aigis = { version = "0.1.0", path = "crates/core", default-features = false }
 bytesize = "1.3.0"
 clap = { version = "4.5.3", features = ["derive", "env"] }
 dotenvy = "0.15.7"

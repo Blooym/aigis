@@ -1,9 +1,14 @@
 [package]
+version = "0.1.0"
 name = "aigis"
 description = "A simple and configurable content proxy."
-version = "0.1.0"
-edition = "2021"
+authors = ["Blooym"]
+categories = ["web-programming::http-server", "multimedia:images"]
+license = "MIT OR Apache-2.0"
+keywords = ["proxy"]
+repository = "https://github.com/Blooym/aigis"
 rust-version = "1.74"
+edition = "2021"
 
 [features]
 default = ["rustls-tls", "cache-moka"]
