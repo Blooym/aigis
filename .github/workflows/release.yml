@@ -98,7 +98,7 @@ jobs:
         id: prerelease
         run: |
           # If the tag ends with -beta.* then it is a prerelease.
-          elif [[ "${{ github.ref }}" =~ ^refs/tags/.*-beta\..* ]]; then
+          if [[ "${{ github.ref }}" =~ ^refs/tags/.*-beta\..* ]]; then
             echo "is-prerelease=true" >> $GITHUB_OUTPUT
           # If the tag ends with -rc.* then it is a prerelease.
           elif [[ "${{ github.ref }}" =~ ^refs/tags/.*-rc\..* ]]; then
