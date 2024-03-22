@@ -1,0 +1,15 @@
+{
+    "dockerFile": "Dockerfile",
+    "updateRemoteUserUID": true,
+    "remoteUser": "dev",
+    "containerUser": "dev",
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "rust-lang.rust-analyzer",
+                "serayuzgur.crates",
+                "tamasfe.even-better-toml"
+            ]
+        }
+    }
+}

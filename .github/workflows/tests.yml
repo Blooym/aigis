@@ -1,0 +1,53 @@
+name: "Tests"
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "crates/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+  pull_request:
+    branches: ["main"]
+    types: [ready_for_review, opened, synchronize]
+    paths:
+      - "crates/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  Rust:
+    name: "Test"
+    strategy:
+      matrix:
+        os: ["windows-latest", "macos-latest", "ubuntu-latest"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Setup Rust Toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+          cache: true
+
+      - name: Build Project
+        run: cargo build --all
+
+      - name: Run Tests
+        run: cargo test --all
+
+      - name: Run Clippy
+        run: cargo clippy --all -- -D warnings
+
+      - name: Run Rustfmt
+        run: cargo fmt --all --check

@@ -1,0 +1,36 @@
+[package]
+name = "aigis-bin"
+description = "Binary for Aigis, a simple and configurable content proxy."
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.74"
+authors = ["Blooym"]
+
+[workspace]
+members = ["crates/core"]
+
+[[bin]]
+name = "aigis"
+path = "crates/cli/src/main.rs"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
+
+[features]
+default = ["rustls-tls", "cache-moka"]
+# TLS Backends
+rustls-tls = ["aigis/rustls-tls"]
+native-tls = ["aigis/native-tls"]
+# Caching Backends
+cache-moka = ["aigis/cache-moka"]
+
+[dependencies]
+anyhow = "1.0.81"
+aigis = { path = "crates/core", default-features = false }
+bytesize = "1.3.0"
+clap = { version = "4.5.3", features = ["derive", "env"] }
+dotenvy = "0.15.7"
+tokio = { version = "1.36.0", features = ["full", "tracing"] }
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
