@@ -28,7 +28,7 @@ jobs:
         with:
           toolchain: stable
           components: rustfmt, clippy
-          cache: true
+          cache: false
 
       - name: Build Project
         run: cargo build --all
