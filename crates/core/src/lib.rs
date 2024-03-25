@@ -29,6 +29,7 @@ use tower_http::{
 use tracing::{info, Level};
 use url::Url;
 
+/// The Aigis server itself.
 /// # Example
 /// ```rust,no_run
 /// use std::net::{SocketAddr, IpAddr, Ipv4Addr};
@@ -48,48 +49,62 @@ pub struct AigisServer {
 /// Settings to run the Aigis server with.
 #[derive(Debug, Clone)]
 pub struct AigisServerSettings {
-    /// How long (in seconds) to allow a request to be processed before it is abandoned
-    /// and an error is sent to the client.
+    /// How many seconds that can elapse before a request is abandoned for taking too long.
     pub request_timeout: u64,
+
     /// See [`UpstreamSettings`].
     pub upstream_settings: UpstreamSettings,
+
     /// See [`ProxySettings`].
     pub proxy_settings: ProxySettings,
 }
 
-/// Configuration options used for the 'proxy' route.
+/// Configuration options used for the `proxy` route.
 #[derive(Debug, Clone)]
 pub struct ProxySettings {
-    /// [`Mime`]s that can be proxied, checked against the Content-Type header
-    /// that the upstream server reports.
+    /// [`Mime`]s that are allowed to be proxied, checked against the Content-Type header
+    /// received from the upstream server.
     ///
     /// Supports type wildcards such as 'image/*'.
     pub allowed_mimetypes: Vec<Mime>,
+
     /// The maximum Content-Lenth that can be proxied.
     /// Anything larger than this value will not be sent and an error will shown instead.
     pub max_size: u64,
-    /// [`Url`]s that can be proxied.
+
+    /// [`Url`]s that are allowed to be proxied.
     ///
-    /// Does not support subdomain wildcards.
+    /// Does not support subdomain wildcards, each domain must be added seperately.
     pub allowed_domains: Option<Vec<Url>>,
-    /// The maximum resolution that content that supports resizing can be resized to.
+
+    /// The maximum resolution that can be requested for content that supports resizing.
     pub max_content_resize: u32,
 }
 
 /// Configuration options used when making any call to an upstream service regardless of route.
 #[derive(Debug, Clone)]
 pub struct UpstreamSettings {
-    /// Headers that will be passed on from the requester to the upstream server verbatim.
+    /// Headers that will be passed on from the client to the upstream server verbatim.
     pub pass_headers: Option<Vec<String>>,
+
     /// Whether or not to allow invalid/expired/forged TLS certificates when making upstream requests.
     ///
-    /// Enabling this is dangerous and is usually not necessary.
+    /// **Enabling this is dangerous and is usually not necessary.**
     pub allow_invalid_certs: bool,
-    /// How long (in seconds) to wait for a request to an upstream server to complete before it's abandoned
-    /// and an error is sent back to the requester.
+
+    /// How many seconds that can elapse after sending a request to an upstream server before it's abandoned
+    /// and considered failed.
     pub request_timeout: u64,
-    /// The maximum amount of redirects to follow when making a request to an upstream server before stopping.
+
+    /// The maximum amount of redirects to follow when making a request to an upstream server before abandoning the request.
     pub max_redirects: usize,
+
+    /// Whether or not to send the client the `Cache-Control` header value that was received when making the
+    /// request to the upstream server if one is available.
+    ///
+    /// If one of the `cache-*` crate features are enabled the request will already be cached server-side for that requested duration,
+    /// so sending the `Cache-Control` header to the client is favourable behaviour as it can sometimes lighten server load.
+    pub use_received_cache_times: bool,
 }
 
 impl Default for AigisServerSettings {
@@ -120,6 +135,7 @@ impl Default for UpstreamSettings {
             max_redirects: 10,
             pass_headers: None,
             request_timeout: 30,
+            use_received_cache_times: true,
         }
     }
 }
@@ -131,7 +147,7 @@ struct AppState {
 }
 
 impl AigisServer {
-    /// Create a new [`AigisServer`] using the provided [`AigisServerSettings`].
+    /// Create a new server with the provided settings.
     pub fn new(settings: AigisServerSettings) -> Result<Self> {
         let router = Router::new()
             .route(PROXY_ENDPOINT, get(routes::proxy_handler))
@@ -164,7 +180,7 @@ impl AigisServer {
         })
     }
 
-    /// Start the server and expose it on the provided [`SocketAddr`].
+    /// Start the server and expose it locally on the provided [`SocketAddr`].
     pub async fn start(self, address: &SocketAddr) -> Result<()> {
         let tcp_listener = TcpListener::bind(&address).await?;
         info!("Listening on http://{}", tcp_listener.local_addr()?);

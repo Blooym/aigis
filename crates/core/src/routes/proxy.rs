@@ -125,6 +125,12 @@ pub async fn proxy_handler(
             .unwrap();
     }
 
+    // Get the cache control header sent to us if one is available.
+    let cache_control_header = upstream_response
+        .headers()
+        .get(reqwest::header::CACHE_CONTROL)
+        .map(|h| HeaderValue::from_str(h.to_str().unwrap()).unwrap());
+
     // Ensure that the response contains a response body.
     let Ok(mut req_body_bytes) = upstream_response.bytes().await else {
         return Response::builder()
@@ -200,11 +206,20 @@ pub async fn proxy_handler(
             .expect("image format mime time should be a valid format");
     }
 
-    // Send back the proxied content.
     let mut response = Response::new(Body::from(req_body_bytes));
     response.headers_mut().append(
         header::CONTENT_TYPE,
         HeaderValue::from_str(content_type.essence_str()).unwrap(),
     );
+
+    // Make cleaner sometime: https://github.com/rust-lang/rust/issues/53667
+    if state.settings.upstream_settings.use_received_cache_times {
+        if let Some(cache_control_header) = cache_control_header {
+            response
+                .headers_mut()
+                .append(header::CACHE_CONTROL, cache_control_header);
+        }
+    }
+
     response
 }

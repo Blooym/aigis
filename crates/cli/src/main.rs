@@ -72,6 +72,17 @@ struct AppOptions {
     #[arg(long = "upstream-pass-headers", env = "AIGIS_UPSTREAM_PASS_HEADERS")]
     upstream_pass_headers: Option<Vec<String>>,
 
+    /// Whether or not to send the client the `Cache-Control` header value that was received when making the
+    /// request to the upstream server if one is available.
+    ///
+    /// If one of the `cache-*` crate features are enabled the request will already be cached server-side for that requested duration,
+    /// so sending the `Cache-Control` header to the client is favourable behaviour as it can sometimes lighten server load.
+    #[arg(
+        long = "use_received_cache_times",
+        env = "AIGIS_UPSTREAM_USE_RECEIVED_CACHE_TIME"
+    )]
+    use_received_cache_times: bool,
+
     /// The maximum Content-Length that can be proxied by this server.
     #[arg(
         long = "proxy-max-size",
@@ -134,6 +145,7 @@ async fn main() -> Result<()> {
             max_redirects: args.upstream_max_redirects,
             pass_headers: args.upstream_pass_headers,
             request_timeout: args.request_timeout,
+            use_received_cache_times: args.use_received_cache_times,
         },
     })?
     .start(&args.address)
