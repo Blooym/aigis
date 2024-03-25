@@ -104,7 +104,7 @@ pub struct UpstreamSettings {
     ///
     /// If one of the `cache-*` crate features are enabled the request will already be cached server-side for that requested duration,
     /// so sending the `Cache-Control` header to the client is favourable behaviour as it can sometimes lighten server load.
-    pub use_received_cache_times: bool,
+    pub use_received_cache_headers: bool,
 }
 
 impl Default for AigisServerSettings {
@@ -135,7 +135,7 @@ impl Default for UpstreamSettings {
             max_redirects: 10,
             pass_headers: None,
             request_timeout: 30,
-            use_received_cache_times: true,
+            use_received_cache_headers: true,
         }
     }
 }

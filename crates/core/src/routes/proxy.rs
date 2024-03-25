@@ -213,7 +213,7 @@ pub async fn proxy_handler(
     );
 
     // Make cleaner sometime: https://github.com/rust-lang/rust/issues/53667
-    if state.settings.upstream_settings.use_received_cache_times {
+    if state.settings.upstream_settings.use_received_cache_headers {
         if let Some(cache_control_header) = cache_control_header {
             response
                 .headers_mut()

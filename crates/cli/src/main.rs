@@ -78,10 +78,10 @@ struct AppOptions {
     /// If one of the `cache-*` crate features are enabled the request will already be cached server-side for that requested duration,
     /// so sending the `Cache-Control` header to the client is favourable behaviour as it can sometimes lighten server load.
     #[arg(
-        long = "use_received_cache_times",
-        env = "AIGIS_UPSTREAM_USE_RECEIVED_CACHE_TIME"
+        long = "use_received_cache_headers",
+        env = "AIGIS_UPSTREAM_USE_RECEIVED_CACHE_HEADERS"
     )]
-    use_received_cache_times: bool,
+    use_received_cache_headers: bool,
 
     /// The maximum Content-Length that can be proxied by this server.
     #[arg(
@@ -145,7 +145,7 @@ async fn main() -> Result<()> {
             max_redirects: args.upstream_max_redirects,
             pass_headers: args.upstream_pass_headers,
             request_timeout: args.request_timeout,
-            use_received_cache_times: args.use_received_cache_times,
+            use_received_cache_headers: args.use_received_cache_headers,
         },
     })?
     .start(&args.address)
