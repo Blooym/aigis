@@ -20,7 +20,7 @@ cache-moka = ["http-cache-reqwest", "http-cache-reqwest/manager-moka"]
 
 [dependencies]
 anyhow = { version = "1.0.81", features = ["backtrace"] }
-axum = { version = "0.7.4", features = ["http2", "tracing"] }
+axum = { version = "0.7.5", features = ["http2", "tracing"] }
 bytes = "1.6.0"
 dotenvy = "0.15.7"
 http-cache-reqwest = { version = "0.13.0", optional = true, default-features = false }
@@ -29,10 +29,7 @@ mime = "0.3.17"
 reqwest = { version = "0.11.27", default-features = false } # TODO: Enable "macos-sytem-configuration" and "charset" when upgrading to 0.12
 reqwest-middleware = { version = "0.2.5" }
 serde = { version = "1.0.197", features = ["derive"] }
-tokio = { version = "1.36.0", default-features = false, features = [
-    "signal",
-    "net",
-] }
+tokio = { version = "1.36.0", features = ["signal", "net"] }
 tower-http = { version = "0.5.2", features = [
     "catch-panic",
     "normalize-path",

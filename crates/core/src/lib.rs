@@ -1,4 +1,4 @@
-//! a
+//! Crate for Aigis, a simple and configurable content proxy.
 
 #[cfg(feature = "rustls-tls")]
 #[cfg(feature = "native-tls")]
@@ -8,15 +8,16 @@ pub extern crate mime;
 pub extern crate url;
 
 mod http_client;
+mod middleware;
 mod mime_util;
 mod routes;
 
 use crate::http_client::{build_http_client, BuildHttpClientArgs};
 use anyhow::Result;
-use axum::{routing::get, Router};
+use axum::{middleware as axum_middleware, routing::get, Router};
 use http_client::HttpClient;
 use mime::Mime;
-use routes::PROXY_ENDPOINT;
+use routes::{HEALTH_ENDPOINT, INDEX_ENDPOINT, PROXY_ENDPOINT};
 use std::{net::SocketAddr, time::Duration};
 use tokio::net::TcpListener;
 use tower_http::{
@@ -134,6 +135,8 @@ impl AigisServer {
     pub fn new(settings: AigisServerSettings) -> Result<Self> {
         let router = Router::new()
             .route(PROXY_ENDPOINT, get(routes::proxy_handler))
+            .route(INDEX_ENDPOINT, get(routes::index_handler))
+            .route(HEALTH_ENDPOINT, get(routes::health_handler))
             .layer(
                 TraceLayer::new_for_http()
                     .make_span_with(trace::DefaultMakeSpan::new().level(Level::INFO))
@@ -144,6 +147,7 @@ impl AigisServer {
             )))
             .layer(NormalizePathLayer::trim_trailing_slash())
             .layer(CatchPanicLayer::new())
+            .layer(axum_middleware::from_fn(middleware::header_middleware))
             .with_state(AppState {
                 client: build_http_client(BuildHttpClientArgs {
                     allow_invalid_certs: settings.upstream_settings.allow_invalid_certs,

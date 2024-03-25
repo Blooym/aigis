@@ -16,7 +16,6 @@ use std::{
 use tracing::{debug, warn};
 use url::Url;
 
-/// The endpoint URL for this route with a leading slash.
 pub const PROXY_ENDPOINT: &str = "/proxy/:url";
 
 #[derive(Debug, Serialize, Deserialize)]
