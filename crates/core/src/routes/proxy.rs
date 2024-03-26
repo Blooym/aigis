@@ -101,7 +101,7 @@ pub async fn proxy_handler(
         return Response::builder()
             .status(StatusCode::BAD_REQUEST)
             .body(Body::from(format!(
-                "Refusing to proxy the rqeuest content as proxying for '{}' is not enabled on this server",
+                "Refusing to proxy the request content as proxying for '{}' is not enabled on this server",
                 content_type.essence_str()
             )))
             .unwrap();
