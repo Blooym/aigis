@@ -77,11 +77,13 @@ struct AppOptions {
     ///
     /// If one of the `cache-*` crate features are enabled the request will already be cached server-side for that requested duration,
     /// so sending the `Cache-Control` header to the client is favourable behaviour as it can sometimes lighten server load.
+    // https://stackoverflow.com/questions/77771008/
     #[arg(
         long = "use-received-cache-headers",
-        env = "AIGIS_USE_RECEIVED_CACHE_HEADERS"
+        env = "AIGIS_USE_RECEIVED_CACHE_HEADERS",
+        default_value_t = true
     )]
-    use_received_cache_headers: bool,
+    use_received_cache_headers: std::primitive::bool,
 
     /// The maximum Content-Length that can be proxied by this server.
     #[arg(
