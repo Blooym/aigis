@@ -45,11 +45,11 @@ struct AppOptions {
 
     /// DANGEROUS: Allow self-signed/invalid/forged TLS certificates when making upstream requests.
     #[arg(
-        long = "upstream-allow-invalid-certs",
-        env = "AIGIS_UPSTREAM_ALLOW_INALID_CERTS",
+        long = "allow-invalid-upstream-certs",
+        env = "AIGIS_ALLOW_INVALID_UPSTREAM_CERTS",
         default_value_t = false
     )]
-    upstream_allow_invalid_certs: bool,
+    allow_invalid_upstream_certs: bool,
 
     /// The maximum lifetime of an upstream request before it is forcefully terminated (in seconds).
     #[arg(
@@ -79,44 +79,47 @@ struct AppOptions {
     /// so sending the `Cache-Control` header to the client is favourable behaviour as it can sometimes lighten server load.
     #[arg(
         long = "use-received-cache-headers",
-        env = "AIGIS_UPSTREAM_USE_RECEIVED_CACHE_HEADERS"
+        env = "AIGIS_USE_RECEIVED_CACHE_HEADERS"
     )]
     use_received_cache_headers: bool,
 
     /// The maximum Content-Length that can be proxied by this server.
     #[arg(
-        long = "proxy-max-size",
-        env = "AIGIS_PROXY_MAX_SIZE",
+        long = "max-proxy-size",
+        env = "AIGIS_MAX_PROXY_SIZE",
         default_value = "100MB"
     )]
-    proxy_max_size: ByteSize,
+    max_proxy_size: ByteSize,
 
     /// A list of MIME "essence" strings that are allowed to be proxied by this server.
     /// Supports type wildcards (e.g. 'image/*').
     #[arg(
-        long = "proxy-allowed-mimetypes",
-        env = "AIGIS_PROXY_ALLOWED_MIMETYPES",
+        long = "allowed-proxy-mimetypes",
+        env = "AIGIS_ALLOWED_PROXY_MIMETYPES",
         default_values_t = [
             IMAGE_STAR,
             Mime::from_str("video/*").unwrap()
         ]
     )]
-    proxy_allowed_mimetypes: Vec<Mime>,
+    allowed_proxy_mimetypes: Vec<Mime>,
 
     /// A list of domains that content is allowed to be proxied.
     /// When left empty all domains are allowed.
     /// Does not support wildcards.
-    #[arg(long = "proxy-allowed-domains", env = "AIGIS_PROXY_ALLOWED_DOMAINS")]
-    proxy_allowed_domains: Option<Vec<Url>>,
+    #[arg(long = "allowed-proxy-domains", env = "AIGIS_ALLOWED_PROXY_DOMAINS")]
+    allowed_proxy_domains: Option<Vec<Url>>,
 
     /// The maximum resolution (inclusive) that is allowed to be requested when proxying
     /// content that supports modification at runtime.
+    ///
+    /// This only affects content that is explicitly requested at a resolution, not content that is originally
+    /// larger than this size.
     #[arg(
-        long = "proxy-max-upscale-res",
-        env = "AIGIS_PROXY_IMAGE_MAX_UPSCALE_RES",
+        long = "max-proxy-content-rescale-res",
+        env = "AIGIS_MAX_CONTENT_RESCALE_RES",
         default_value_t = 1024
     )]
-    proxy_max_upscale_res: u32,
+    max_content_rescale_res: u32,
 }
 
 #[tokio::main]
@@ -128,20 +131,20 @@ async fn main() -> Result<()> {
         .init();
     let args = AppOptions::parse();
 
-    if args.upstream_allow_invalid_certs {
+    if args.allow_invalid_upstream_certs {
         println!("WARNING: Running with 'upstream_allow_invalid_certs' will allow upstreams with Invalid/Forged/No TLS certificates to be proxied, be careful.");
     }
 
     AigisServer::new(AigisServerSettings {
         request_timeout: args.request_timeout,
         proxy_settings: ProxySettings {
-            allowed_domains: args.proxy_allowed_domains,
-            allowed_mimetypes: args.proxy_allowed_mimetypes,
-            max_size: args.proxy_max_size.as_u64(),
-            max_content_resize: args.proxy_max_upscale_res,
+            allowed_domains: args.allowed_proxy_domains,
+            allowed_mimetypes: args.allowed_proxy_mimetypes,
+            max_size: args.max_proxy_size.as_u64(),
+            max_content_rescale_resolution: args.max_content_rescale_res,
         },
         upstream_settings: UpstreamSettings {
-            allow_invalid_certs: args.upstream_allow_invalid_certs,
+            allow_invalid_certs: args.allow_invalid_upstream_certs,
             max_redirects: args.upstream_max_redirects,
             pass_headers: args.upstream_pass_headers,
             request_timeout: args.request_timeout,

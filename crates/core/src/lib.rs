@@ -78,7 +78,7 @@ pub struct ProxySettings {
     pub allowed_domains: Option<Vec<Url>>,
 
     /// The maximum resolution that can be requested for content that supports resizing.
-    pub max_content_resize: u32,
+    pub max_content_rescale_resolution: u32,
 }
 
 /// Configuration options used when making any call to an upstream service regardless of route.
@@ -123,7 +123,7 @@ impl Default for ProxySettings {
             allowed_mimetypes: vec![mime::IMAGE_STAR],
             allowed_domains: None,
             max_size: 100000000,
-            max_content_resize: 1024,
+            max_content_rescale_resolution: 1024,
         }
     }
 }

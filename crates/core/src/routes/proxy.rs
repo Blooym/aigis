@@ -176,7 +176,7 @@ pub async fn proxy_handler(
         // Conditionally apply resizing if requested.
         if let Some(resize) = query.0.size {
             debug!("Applying resize to requested image");
-            if resize > state.settings.proxy_settings.max_content_resize {
+            if resize > state.settings.proxy_settings.max_content_rescale_resolution {
                 return Response::builder()
                     .status(StatusCode::BAD_REQUEST)
                     .body(Body::from(
