@@ -78,7 +78,7 @@ struct AppOptions {
     /// If one of the `cache-*` crate features are enabled the request will already be cached server-side for that requested duration,
     /// so sending the `Cache-Control` header to the client is favourable behaviour as it can sometimes lighten server load.
     #[arg(
-        long = "use_received_cache_headers",
+        long = "use-received-cache-headers",
         env = "AIGIS_UPSTREAM_USE_RECEIVED_CACHE_HEADERS"
     )]
     use_received_cache_headers: bool,
