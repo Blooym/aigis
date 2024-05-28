@@ -23,12 +23,13 @@ codegen-units = 1
 strip = true
 
 [features]
-default = ["rustls-tls", "cache-moka"]
+default = ["rustls-tls", "cache-cacache"]
 # TLS Backends
 rustls-tls = ["aigis/rustls-tls"]
 native-tls = ["aigis/native-tls"]
 # Caching Backends
 cache-moka = ["aigis/cache-moka"]
+cache-cacache = ["aigis/cache-cacache"]
 
 [dependencies]
 anyhow = "1.0.86"

@@ -1,3 +1,7 @@
+#[cfg(feature = "cache-moka")]
+#[cfg(feature = "cache-cacache")]
+compile_error!("You can only enable one caching backend");
+
 use anyhow::Result;
 use reqwest::redirect::Policy;
 use std::time::Duration;
@@ -42,6 +46,8 @@ pub fn build_http_client(args: BuildHttpClientArgs) -> Result<HttpClient> {
 
     #[cfg(feature = "cache-moka")]
     let builder = add_cache(builder)?;
+    #[cfg(feature = "cache-cacache")]
+    let builder = add_cache(builder)?;
 
     Ok(builder.build())
 }
@@ -52,6 +58,23 @@ fn add_cache(client: HttpClientBuilder) -> Result<HttpClientBuilder> {
     Ok(client.with(Cache(HttpCache {
         mode: CacheMode::Default,
         manager: MokaManager::default(),
+        options: HttpCacheOptions::default(),
+    })))
+}
+
+#[cfg(feature = "cache-cacache")]
+fn add_cache(client: HttpClientBuilder) -> Result<HttpClientBuilder> {
+    use std::path::PathBuf;
+
+    use http_cache_reqwest::{CACacheManager, Cache, CacheMode, HttpCache, HttpCacheOptions};
+    Ok(client.with(Cache(HttpCache {
+        mode: CacheMode::Default,
+        manager: CACacheManager {
+            path: dirs::cache_dir()
+                .unwrap_or(PathBuf::from(".cache"))
+                .join("aigis")
+                .join("cacache"),
+        },
         options: HttpCacheOptions::default(),
     })))
 }
