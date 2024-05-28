@@ -19,7 +19,7 @@ native-tls = ["reqwest/native-tls"]
 cache-moka = ["http-cache-reqwest", "http-cache-reqwest/manager-moka"]
 
 [dependencies]
-anyhow = { version = "1.0.82", features = ["backtrace"] }
+anyhow = { version = "1.0.86", features = ["backtrace"] }
 axum = { version = "0.7.5", features = ["http2", "tracing"] }
 bytes = "1.6.0"
 dotenvy = "0.15.7"
@@ -31,8 +31,8 @@ reqwest = { version = "0.12.4", default-features = false, features = [
     "charset",
     "http2",
 ] }
-reqwest-middleware = { version = "0.3.0" }
-serde = { version = "1.0.198", features = ["derive"] }
+reqwest-middleware = { version = "0.3.1" }
+serde = { version = "1.0.203", features = ["derive"] }
 tokio = { version = "1.37.0", features = ["signal", "net"] }
 tower-http = { version = "0.5.2", features = [
     "catch-panic",
