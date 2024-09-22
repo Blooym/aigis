@@ -6,7 +6,7 @@ use axum::{
     response::Response,
 };
 use bytes::Bytes;
-use image::{imageops::FilterType, io::Reader, ImageFormat};
+use image::{imageops::FilterType, ImageFormat, ImageReader};
 use mime::*;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -160,7 +160,7 @@ pub async fn proxy_handler(
 
         // Decode image
         let Ok(mut image) =
-            Reader::with_format(BufReader::new(Cursor::new(req_body_bytes)), mime_image_type)
+            ImageReader::with_format(BufReader::new(Cursor::new(req_body_bytes)), mime_image_type)
                 .decode()
         else {
             return Response::builder()

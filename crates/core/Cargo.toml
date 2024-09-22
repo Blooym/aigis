@@ -24,30 +24,30 @@ cache-cacache = [
 ]
 
 [dependencies]
-anyhow = { version = "1.0.86", features = ["backtrace"] }
-axum = { version = "0.7.5", features = ["http2", "tracing"] }
-bytes = "1.6.0"
+anyhow = { version = "1.0.89", features = ["backtrace"] }
+axum = { version = "0.7.6", features = ["http2", "tracing"] }
+bytes = "1.7.2"
 dotenvy = "0.15.7"
 http-cache-reqwest = { version = "0.14.0", optional = true, default-features = false }
 dirs = { version = "5.0.1", optional = true, default-features = false }
-image = "0.25.1"
+image = "0.25.2"
 mime = "0.3.17"
-reqwest = { version = "0.12.4", default-features = false, features = [
+reqwest = { version = "0.12.7", default-features = false, features = [
     "macos-system-configuration",
     "charset",
     "http2",
 ] }
-reqwest-middleware = { version = "0.3.1" }
-serde = { version = "1.0.203", features = ["derive"] }
-tokio = { version = "1.37.0", features = ["signal", "net"] }
-tower-http = { version = "0.5.2", features = [
+reqwest-middleware = { version = "0.3.3" }
+serde = { version = "1.0.210", features = ["derive"] }
+tokio = { version = "1.40.0", features = ["signal", "net"] }
+tower-http = { version = "0.6.0", features = [
     "catch-panic",
     "normalize-path",
     "timeout",
     "trace",
 ] }
 tracing = "0.1.40"
-url = "2.5.0"
+url = "2.5.2"
 
 [lints.rust]
 missing_docs = "warn"
