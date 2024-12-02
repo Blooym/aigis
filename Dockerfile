@@ -1,28 +1,25 @@
 # ----------
 #    USER
 # ----------
-FROM alpine:latest as user
+FROM alpine:latest AS user
 RUN adduser -S -s /bin/false -D aigis
-RUN mkdir /data
 
 # -----------
 #    BUILD
 # -----------
-FROM rust:1-alpine as build
+FROM rust:1-alpine AS build
 WORKDIR /build
 RUN apk add --no-cache --update build-base
 
 # Pre-cache cargo dependencies.
 COPY ["Cargo.toml", "Cargo.lock", "./"]
 COPY crates ./crates
-ARG RUSTC_BUILD_FLAGS=--release --bin
-RUN cargo build ${RUSTC_BUILD_FLAGS}
-
+RUN cargo build --release --bin
 
 # -----------
 #   RUNTIME
 # -----------
-FROM scratch as runtime
+FROM scratch AS runtime
 WORKDIR /app
 
 COPY --from=build /build/target/release/aigis /usr/bin/aigis
