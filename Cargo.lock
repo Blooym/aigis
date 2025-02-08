@@ -28,7 +28,7 @@ dependencies = [
 
 [[package]]
 name = "aigis"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "anyhow",
  "axum",
@@ -49,7 +49,7 @@ dependencies = [
 
 [[package]]
 name = "aigis-bin"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "aigis",
  "anyhow",
