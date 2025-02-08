@@ -211,7 +211,7 @@ pub async fn proxy_handler(
 
         req_body_bytes = Bytes::from_iter(buffer);
         content_type = Mime::from_str(image_format.to_mime_type())
-            .expect("image format mime time should be a valid format");
+            .expect("image format mime type should be a valid format");
     }
 
     let mut response = Response::new(Body::from(req_body_bytes));
