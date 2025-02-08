@@ -10,11 +10,10 @@ A simple and configurable content proxy aimed at websites that want to embed ima
 
 ## Features
 
-* [x] Proxy endpoint image resizing and format changing via query parameters.
-* [x] Upstream request caching that respects `Cache-Control` headers.
-* [x] `Content-Type` allow-list.
+* [x] Image modifications via query parameters.
+* [x] Request caching that respects `Cache-Control` headers.
+* [x] `Content-Type` allow-list with wildcard support.
 * [ ] 'Embed' endpoint that turns OpenGraph meta tags into a JSON format for use in frontend applications that embed content.
-* [ ] Improved format of request errors.
 * [ ] Subdomain wildcard support for `--proxy-allowed-domains`
 
 ## Installing
