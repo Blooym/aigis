@@ -12,4 +12,7 @@ pub async fn header_middleware(request: Request, next: Next) -> Response {
         HeaderValue::from_static(env!("CARGO_PKG_NAME")),
     );
     response
+        .headers_mut()
+        .append("X-Robots-Tag", HeaderValue::from_static("none"));
+    response
 }

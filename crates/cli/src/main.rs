@@ -5,27 +5,13 @@ use aigis::{
 };
 use anyhow::Result;
 use bytesize::ByteSize;
-use clap::{
-    builder::{
-        styling::{AnsiColor, Effects},
-        Styles,
-    },
-    Parser,
-};
+use clap::Parser;
 use dotenvy::dotenv;
 use std::{net::SocketAddr, str::FromStr};
 use tracing_subscriber::EnvFilter;
 
-fn styles() -> Styles {
-    Styles::styled()
-        .header(AnsiColor::BrightMagenta.on_default() | Effects::BOLD)
-        .usage(AnsiColor::BrightMagenta.on_default() | Effects::BOLD)
-        .literal(AnsiColor::BrightGreen.on_default() | Effects::BOLD)
-        .placeholder(AnsiColor::Green.on_default())
-}
-
 #[derive(Debug, Parser)]
-#[command(author, version, about, long_about, styles = styles())]
+#[command(author, version, about, long_about)]
 struct AppOptions {
     /// The socket address that the local server should be hosted on.
     #[arg(

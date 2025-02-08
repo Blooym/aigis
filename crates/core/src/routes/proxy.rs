@@ -3,7 +3,8 @@ use axum::{
     body::Body,
     extract::{Path, Query, State},
     http::{header, HeaderMap, HeaderValue, StatusCode},
-    response::Response,
+    response::{IntoResponse, Response},
+    Json,
 };
 use bytes::Bytes;
 use image::{imageops::FilterType, ImageFormat, ImageReader};
@@ -16,9 +17,9 @@ use std::{
 use tracing::{debug, warn};
 use url::Url;
 
-pub const PROXY_ENDPOINT: &str = "/proxy/:url";
+pub const PROXY_ENDPOINT: &str = "/proxy/{url}";
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct ProxyRequestQueryParams {
     /// The content format to return after proxying.
     /// If the content does not have support implemented for format adjustments
@@ -31,6 +32,11 @@ pub struct ProxyRequestQueryParams {
     pub size: Option<u32>,
 }
 
+#[derive(Debug, Serialize)]
+pub struct ProxyError<'a> {
+    message: &'a str,
+}
+
 pub async fn proxy_handler(
     State(state): State<AppState>,
     Path(url): Path<Url>,
@@ -40,10 +46,13 @@ pub async fn proxy_handler(
     // If allowed_domains is enabled, check if this domain is allowed.
     if let Some(allowed_domains) = state.settings.proxy_settings.allowed_domains {
         if !allowed_domains.contains(&url) {
-            return Response::builder()
-                .status(StatusCode::BAD_REQUEST)
-                .body(Body::from("Proxying for this domain is not enabled"))
-                .unwrap();
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ProxyError {
+                    message: "Proxying for this domain is not permitted.",
+                }),
+            )
+                .into_response();
         }
     }
 
@@ -62,20 +71,27 @@ pub async fn proxy_handler(
     let upstream_response = match request.send().await {
         Err(err) => {
             warn!("Failed to make request to upstream server: {}", err);
-            return Response::builder()
-                .status(StatusCode::BAD_GATEWAY)
-                .body(Body::from("Failed to make request to upstream server"))
-                .unwrap();
+            return (
+                StatusCode::BAD_GATEWAY,
+                Json(ProxyError {
+                    message: "Failed to send request to upstream server.",
+                }),
+            )
+                .into_response();
         }
         Ok(data) => {
             if let Err(err) = data.error_for_status_ref() {
-                Response::builder()
-                    .status(StatusCode::BAD_GATEWAY)
-                    .body(Body::from(format!(
-                        "Upstream server responded with a failure status code: {}",
-                        err
-                    )))
-                    .unwrap();
+                return (
+                    StatusCode::BAD_GATEWAY,
+                    Json(ProxyError {
+                        message: format!(
+                            "Upstream server responded with a unsuccessful status code: {}",
+                            err
+                        )
+                        .as_str(),
+                    }),
+                )
+                    .into_response();
             }
             data
         }
@@ -87,42 +103,39 @@ pub async fn proxy_handler(
         .get(header::CONTENT_TYPE.to_string())
         .map(|s| s.to_str().unwrap().parse().unwrap())
     else {
-        return Response::builder()
-            .status(StatusCode::BAD_GATEWAY)
-            .body(Body::from(
-                "Upstream server either did not send or sent an invalid Content-Type header",
-            ))
-            .unwrap();
+        return (
+            StatusCode::BAD_GATEWAY,
+            Json(ProxyError {
+                message:
+                    "Upstream server either did not send or sent an invalid Content-Type header.",
+            }),
+        )
+            .into_response();
     };
     if !mime_util::is_mime_allowed(
         &content_type,
         &state.settings.proxy_settings.allowed_mimetypes,
     ) {
-        return Response::builder()
-            .status(StatusCode::BAD_REQUEST)
-            .body(Body::from(format!(
-                "Refusing to proxy the request content as proxying for '{}' is not enabled on this server",
-                content_type.essence_str()
-            )))
-            .unwrap();
+        return (StatusCode::BAD_REQUEST, format!(
+            "Refusing to proxy the request content as proxying for '{}' is not enabled on this server.",
+            content_type.essence_str()
+        )).into_response();
     }
 
     // Ensure that the Content-Length header value is below the servers max size.
     let Some(content_length) = upstream_response.content_length() else {
-        return Response::builder()
-            .status(StatusCode::BAD_GATEWAY)
-            .body(Body::from(
-                "Upstream did not provide Content-Length information",
-            ))
-            .unwrap();
+        return (
+            StatusCode::BAD_GATEWAY,
+            "Upstream did not provide Content-Length information.",
+        )
+            .into_response();
     };
     if content_length > state.settings.proxy_settings.max_size {
-        return Response::builder()
-            .status(StatusCode::BAD_REQUEST)
-            .body(Body::from(
-                "Refusing to proxy requested content as it exceeds the maximum Content-Length",
-            ))
-            .unwrap();
+        return (
+            StatusCode::BAD_REQUEST,
+            "Refusing to proxy requested content as it exceeds the maximum Content-Length.",
+        )
+            .into_response();
     }
 
     // Get the cache control header sent to us if one is available.
@@ -133,24 +146,22 @@ pub async fn proxy_handler(
 
     // Ensure that the response contains a response body.
     let Ok(mut req_body_bytes) = upstream_response.bytes().await else {
-        return Response::builder()
-            .status(StatusCode::INTERNAL_SERVER_ERROR)
-            .body(Body::from(
-                "Something went wrong whilst obtaining the request body from upstream",
-            ))
-            .unwrap();
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Something went wrong whilst obtaining the request body from upstream.",
+        )
+            .into_response();
     };
 
     // If the provided Content-Type is an image and the query requested
     // image changes, apply them.
     if content_type.type_() == mime::IMAGE && (query.0.size.is_some()) || query.0.format.is_some() {
         let Some(mime_image_type) = ImageFormat::from_mime_type(content_type.essence_str()) else {
-            return Response::builder()
-                .status(StatusCode::BAD_REQUEST)
-                .body(Body::from(
-                    "Image modifications were requested on an unsupported content format",
-                ))
-                .unwrap();
+            return (
+                StatusCode::BAD_REQUEST,
+                "Image modifications were requested on an unsupported content format.",
+            )
+                .into_response();
         };
         let image_format = query
             .0
@@ -163,12 +174,11 @@ pub async fn proxy_handler(
             ImageReader::with_format(BufReader::new(Cursor::new(req_body_bytes)), mime_image_type)
                 .decode()
         else {
-            return Response::builder()
-                .status(StatusCode::BAD_REQUEST)
-                .body(Body::from(
-                    "Unable to decode image receieved from upstream server",
-                ))
-                .unwrap();
+            return (
+                StatusCode::BAD_REQUEST,
+                "Unable to decode image receieved from upstream server.",
+            )
+                .into_response();
         };
 
         let mut buffer: Vec<u8> = Vec::new();
@@ -177,12 +187,11 @@ pub async fn proxy_handler(
         if let Some(resize) = query.0.size {
             debug!("Applying resize to requested image");
             if resize > state.settings.proxy_settings.max_content_rescale_resolution {
-                return Response::builder()
-                    .status(StatusCode::BAD_REQUEST)
-                    .body(Body::from(
-                        "The requested image size was too large to be processed by this server",
-                    ))
-                    .unwrap();
+                return (
+                    StatusCode::BAD_REQUEST,
+                    "The requested image size was too large to be processed by this server.",
+                )
+                    .into_response();
             }
             image = image.resize(resize, resize, FilterType::Nearest);
         }
@@ -193,12 +202,11 @@ pub async fn proxy_handler(
             .write_to(&mut BufWriter::new(Cursor::new(&mut buffer)), image_format)
             .is_err()
         {
-            return Response::builder()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .body(Body::from(
-                    "An error occured whilst attempting to process image modifications",
-                ))
-                .unwrap();
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "An error occured whilst attempting to process image modifications.",
+            )
+                .into_response();
         };
 
         req_body_bytes = Bytes::from_iter(buffer);
