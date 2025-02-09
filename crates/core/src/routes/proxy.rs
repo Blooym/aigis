@@ -116,24 +116,29 @@ pub async fn proxy_handler(
         &content_type,
         &state.settings.proxy_settings.allowed_mimetypes,
     ) {
-        return (StatusCode::BAD_REQUEST, format!(
+        return (StatusCode::BAD_REQUEST, Json(ProxyError { message: &format!(
             "Refusing to proxy the request content as proxying for '{}' is not enabled on this server.",
             content_type.essence_str()
-        )).into_response();
+        )})).into_response();
     }
 
     // Ensure that the Content-Length header value is below the servers max size.
     let Some(content_length) = upstream_response.content_length() else {
         return (
             StatusCode::BAD_GATEWAY,
-            "Upstream did not provide Content-Length information.",
+            Json(ProxyError {
+                message: "Upstream did not provide Content-Length information.",
+            }),
         )
             .into_response();
     };
     if content_length > state.settings.proxy_settings.max_size {
         return (
             StatusCode::BAD_REQUEST,
-            "Refusing to proxy requested content as it exceeds the maximum Content-Length.",
+            Json(ProxyError {
+                message:
+                    "Refusing to proxy requested content as it exceeds the maximum Content-Length.",
+            }),
         )
             .into_response();
     }
@@ -148,7 +153,9 @@ pub async fn proxy_handler(
     let Ok(mut req_body_bytes) = upstream_response.bytes().await else {
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
-            "Something went wrong whilst obtaining the request body from upstream.",
+            Json(ProxyError {
+                message: "Something went wrong whilst obtaining the request body from upstream.",
+            }),
         )
             .into_response();
     };
@@ -159,7 +166,9 @@ pub async fn proxy_handler(
         let Some(mime_image_type) = ImageFormat::from_mime_type(content_type.essence_str()) else {
             return (
                 StatusCode::BAD_REQUEST,
-                "Image modifications were requested on an unsupported content format.",
+                Json(ProxyError {
+                    message: "Image modifications were requested on an unsupported content format.",
+                }),
             )
                 .into_response();
         };
@@ -176,7 +185,9 @@ pub async fn proxy_handler(
         else {
             return (
                 StatusCode::BAD_REQUEST,
-                "Unable to decode image receieved from upstream server.",
+                Json(ProxyError {
+                    message: "Unable to decode image receieved from upstream server.",
+                }),
             )
                 .into_response();
         };
@@ -189,7 +200,9 @@ pub async fn proxy_handler(
             if resize > state.settings.proxy_settings.max_content_rescale_resolution {
                 return (
                     StatusCode::BAD_REQUEST,
-                    "The requested image size was too large to be processed by this server.",
+                    Json(ProxyError {
+                        message:"The requested image size was too large to be processed by this server.",
+                    })
                 )
                     .into_response();
             }
@@ -204,7 +217,9 @@ pub async fn proxy_handler(
         {
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                "An error occured whilst attempting to process image modifications.",
+                Json(ProxyError {
+                    message: "An error occured whilst attempting to process image modifications.",
+                }),
             )
                 .into_response();
         };
