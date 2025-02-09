@@ -166,7 +166,7 @@ pub async fn proxy_handler(
         let image_format = query
             .0
             .format
-            .map(|s| ImageFormat::from_extension(s).unwrap())
+            .map(|s| ImageFormat::from_extension(s).unwrap_or(mime_image_type))
             .unwrap_or(mime_image_type);
 
         // Decode image
