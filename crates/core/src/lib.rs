@@ -12,9 +12,9 @@ mod middleware;
 mod mime_util;
 mod routes;
 
-use crate::http_client::{build_http_client, BuildHttpClientArgs};
+use crate::http_client::{BuildHttpClientArgs, build_http_client};
 use anyhow::Result;
-use axum::{middleware as axum_middleware, routing::get, Router};
+use axum::{Router, middleware as axum_middleware, routing::get};
 use http_client::HttpClient;
 use mime::Mime;
 use routes::{HEALTH_ENDPOINT, INDEX_ENDPOINT, PROXY_ENDPOINT};
@@ -26,7 +26,7 @@ use tower_http::{
     timeout::TimeoutLayer,
     trace::{self, TraceLayer},
 };
-use tracing::{info, Level};
+use tracing::{Level, info};
 use url::Url;
 
 /// The Aigis server itself.

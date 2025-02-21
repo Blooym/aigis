@@ -7,8 +7,8 @@ categories = ["web-programming::http-server", "multimedia::images"]
 license = "MIT OR Apache-2.0"
 keywords = ["proxy"]
 repository = "https://github.com/Blooym/aigis"
-rust-version = "1.74"
-edition = "2021"
+rust-version = "1.85"
+edition = "2024"
 
 [features]
 default = ["rustls-tls", "cache-moka"]
@@ -24,7 +24,7 @@ cache-cacache = [
 ]
 
 [dependencies]
-anyhow = { version = "1.0.95", features = ["backtrace"] }
+anyhow = { version = "1.0.96", features = ["backtrace"] }
 axum = { version = "0.8.1", features = ["http2", "tracing"] }
 bytes = "1.10.0"
 dotenvy = "0.15.7"
@@ -38,7 +38,7 @@ reqwest = { version = "0.12.12", default-features = false, features = [
     "http2",
 ] }
 reqwest-middleware = { version = "0.4.0" }
-serde = { version = "1.0.217", features = ["derive"] }
+serde = { version = "1.0.218", features = ["derive"] }
 tokio = { version = "1.43.0", features = ["signal", "net"] }
 tower-http = { version = "0.6.2", features = [
     "catch-panic",

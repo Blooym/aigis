@@ -1,7 +1,7 @@
 use aigis::{
-    mime::{Mime, IMAGE_STAR},
-    url::Url,
     AigisServer, AigisServerSettings, ProxySettings, UpstreamSettings,
+    mime::{IMAGE_STAR, Mime},
+    url::Url,
 };
 use anyhow::Result;
 use bytesize::ByteSize;
@@ -120,7 +120,9 @@ async fn main() -> Result<()> {
     let args = AppOptions::parse();
 
     if args.allow_invalid_upstream_certs {
-        println!("WARNING: Running with 'upstream_allow_invalid_certs' will allow upstreams with Invalid/Forged/No TLS certificates to be proxied, be careful.");
+        println!(
+            "WARNING: Running with 'upstream_allow_invalid_certs' will allow upstreams with Invalid/Forged/No TLS certificates to be proxied, be careful."
+        );
     }
 
     AigisServer::new(AigisServerSettings {
