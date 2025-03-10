@@ -17,7 +17,7 @@ use anyhow::Result;
 use axum::{Router, middleware as axum_middleware, routing::get};
 use http_client::HttpClient;
 use mime::Mime;
-use routes::{HEALTH_ENDPOINT, INDEX_ENDPOINT, PROXY_ENDPOINT};
+use routes::{HEALTH_ENDPOINT, INDEX_ENDPOINT, METADATA_ENDPOINT, PROXY_ENDPOINT};
 use std::{net::SocketAddr, time::Duration};
 use tokio::net::TcpListener;
 use tower_http::{
@@ -153,6 +153,7 @@ impl AigisServer {
             .route(PROXY_ENDPOINT, get(routes::proxy_handler))
             .route(INDEX_ENDPOINT, get(routes::index_handler))
             .route(HEALTH_ENDPOINT, get(routes::health_handler))
+            .route(METADATA_ENDPOINT, get(routes::metadata_handler))
             .layer(
                 TraceLayer::new_for_http()
                     .make_span_with(trace::DefaultMakeSpan::new().level(Level::INFO))

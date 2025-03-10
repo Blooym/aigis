@@ -33,7 +33,7 @@ pub struct ProxyRequestQueryParams {
 }
 
 #[derive(Debug, Serialize)]
-pub struct ProxyError<'a> {
+struct ProxyError<'a> {
     message: &'a str,
 }
 

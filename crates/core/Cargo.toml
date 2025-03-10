@@ -24,9 +24,9 @@ cache-cacache = [
 ]
 
 [dependencies]
-anyhow = { version = "1.0.96", features = ["backtrace"] }
+anyhow = { version = "1.0.97", features = ["backtrace"] }
 axum = { version = "0.8.1", features = ["http2", "tracing"] }
-bytes = "1.10.0"
+bytes = "1.10.1"
 dotenvy = "0.15.7"
 http-cache-reqwest = { version = "0.15.1", optional = true, default-features = false }
 dirs = { version = "6.0.0", optional = true, default-features = false }
@@ -37,9 +37,9 @@ reqwest = { version = "0.12.12", default-features = false, features = [
     "charset",
     "http2",
 ] }
-reqwest-middleware = { version = "0.4.0" }
-serde = { version = "1.0.218", features = ["derive"] }
-tokio = { version = "1.43.0", features = ["signal", "net"] }
+reqwest-middleware = { version = "0.4.1" }
+serde = { version = "1.0.219", features = ["derive"] }
+tokio = { version = "1.44.0", features = ["signal", "net"] }
 tower-http = { version = "0.6.2", features = [
     "catch-panic",
     "normalize-path",
@@ -48,6 +48,7 @@ tower-http = { version = "0.6.2", features = [
 ] }
 tracing = "0.1.41"
 url = "2.5.4"
+scraper = "0.23.1"
 
 [lints.rust]
 missing_docs = "warn"
