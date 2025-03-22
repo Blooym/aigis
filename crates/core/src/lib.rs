@@ -19,7 +19,7 @@ use http_client::HttpClient;
 use mime::Mime;
 use routes::{HEALTH_ENDPOINT, INDEX_ENDPOINT, METADATA_ENDPOINT, PROXY_ENDPOINT};
 use std::{net::SocketAddr, time::Duration};
-use tokio::net::TcpListener;
+use tokio::{net::TcpListener, signal};
 use tower_http::{
     catch_panic::CatchPanicLayer,
     normalize_path::NormalizePathLayer,
@@ -186,13 +186,33 @@ impl AigisServer {
         let tcp_listener = TcpListener::bind(&address).await?;
         info!("Listening on http://{}", tcp_listener.local_addr()?);
         axum::serve(tcp_listener, self.router_inner)
-            .with_graceful_shutdown(async {
-                tokio::signal::ctrl_c()
-                    .await
-                    .expect("failed to listen for ctrl-c");
-            })
+            .with_graceful_shutdown(Self::shutdown_signal())
             .await?;
-
         Ok(())
+    }
+
+    // https://github.com/tokio-rs/axum/blob/15917c6dbcb4a48707a20e9cfd021992a279a662/examples/graceful-shutdown/src/main.rs#L55
+    async fn shutdown_signal() {
+        let ctrl_c = async {
+            signal::ctrl_c()
+                .await
+                .expect("failed to install Ctrl+C handler");
+        };
+
+        #[cfg(unix)]
+        let terminate = async {
+            signal::unix::signal(signal::unix::SignalKind::terminate())
+                .expect("failed to install signal handler")
+                .recv()
+                .await;
+        };
+
+        #[cfg(not(unix))]
+        let terminate = std::future::pending::<()>();
+
+        tokio::select! {
+            _ = ctrl_c => {},
+            _ = terminate => {},
+        }
     }
 }
