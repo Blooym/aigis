@@ -37,7 +37,7 @@ aigis = { version = "0.2.3", path = "crates/core", default-features = false }
 bytesize = "2.0.1"
 clap = { version = "4.5.31", features = ["derive", "env"] }
 dotenvy = "0.15.7"
-tokio = { version = "1.44.0", features = [
+tokio = { version = "1.44.2", features = [
     "macros",
     "rt-multi-thread",
     "parking_lot",
