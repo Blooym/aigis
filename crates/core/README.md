@@ -10,12 +10,12 @@ A simple and configurable content proxy, created to allow websites to embed imag
 
 ## Features
 
-| Name | Description | Default? |
-|------|-------------|----------|
-| `rustls-tls` | Use [`rustls`](https://github.com/rustls/rustls) when making upstream requests | `yes`      |
-| `native-tls` | Use the system's native TLS when making upstream requests | `no`     |
-| `cache-moka` | Enable upstream response caching using [`moka`](https://github.com/moka-rs/moka) (respecting `Cache-Control` headers) | `yes`      |
-| `cache-cacache` | Enable upstream response caching using [`moka`](https://github.com/zkat/cacache-rs) (respecting `Cache-Control` headers) | `no`      |
+| Name            | Description                                                                                                                 | Default? |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------- | -------- |
+| `rustls-tls`    | Use [`rustls`](https://github.com/rustls/rustls) when making upstream requests                                              | `yes`    |
+| `native-tls`    | Use the system's native TLS when making upstream requests                                                                   | `no`     |
+| `cache-moka`    | Enable upstream response caching using [`moka`](https://github.com/moka-rs/moka) (respecting `Cache-Control` headers)       | `yes`    |
+| `cache-cacache` | Enable upstream response caching using [`cacache`](https://github.com/zkat/cacache-rs) (respecting `Cache-Control` headers) | `no`     |
 
 ## Documentation
 

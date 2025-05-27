@@ -8,16 +8,22 @@ pub extern crate mime;
 pub extern crate url;
 
 mod http_client;
-mod middleware;
 mod mime_util;
 mod routes;
 
 use crate::http_client::{BuildHttpClientArgs, build_http_client};
 use anyhow::Result;
-use axum::{Router, middleware as axum_middleware, routing::get};
+use axum::{
+    Router,
+    extract::Request,
+    http::HeaderValue,
+    middleware::{self as axum_middleware, Next},
+    response::Response,
+    routing::get,
+};
 use http_client::HttpClient;
 use mime::Mime;
-use routes::{HEALTH_ENDPOINT, INDEX_ENDPOINT, METADATA_ENDPOINT, PROXY_ENDPOINT};
+use reqwest::header;
 use std::{net::SocketAddr, time::Duration};
 use tokio::{net::TcpListener, signal};
 use tower_http::{
@@ -150,10 +156,10 @@ impl AigisServer {
     /// Create a new server with the provided settings.
     pub fn new(settings: AigisServerSettings) -> Result<Self> {
         let router = Router::new()
-            .route(PROXY_ENDPOINT, get(routes::proxy_handler))
-            .route(INDEX_ENDPOINT, get(routes::index_handler))
-            .route(HEALTH_ENDPOINT, get(routes::health_handler))
-            .route(METADATA_ENDPOINT, get(routes::metadata_handler))
+            .route("/proxy/{url}", get(routes::proxy_handler))
+            .route("/", get(routes::index_handler))
+            .route("/health", get(routes::health_handler))
+            .route("/metadata/{url}", get(routes::metadata_handler))
             .layer(
                 TraceLayer::new_for_http()
                     .make_span_with(trace::DefaultMakeSpan::new().level(Level::INFO))
@@ -164,7 +170,7 @@ impl AigisServer {
             )))
             .layer(NormalizePathLayer::trim_trailing_slash())
             .layer(CatchPanicLayer::new())
-            .layer(axum_middleware::from_fn(middleware::header_middleware))
+            .layer(axum_middleware::from_fn(AigisServer::header_middleware))
             .with_state(AppState {
                 client: build_http_client(BuildHttpClientArgs {
                     allow_invalid_certs: settings.upstream_settings.allow_invalid_certs,
@@ -214,5 +220,17 @@ impl AigisServer {
             _ = ctrl_c => {},
             _ = terminate => {},
         }
+    }
+
+    async fn header_middleware(request: Request, next: Next) -> Response {
+        let mut response = next.run(request).await;
+        response.headers_mut().append(
+            header::SERVER,
+            HeaderValue::from_static(env!("CARGO_PKG_NAME")),
+        );
+        response
+            .headers_mut()
+            .append("X-Robots-Tag", HeaderValue::from_static("none"));
+        response
     }
 }

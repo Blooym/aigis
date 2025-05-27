@@ -10,8 +10,6 @@ use serde::Serialize;
 use std::collections::HashMap;
 use url::Url;
 
-pub const METADATA_ENDPOINT: &str = "/metadata/{url}";
-
 #[derive(Debug, Serialize)]
 struct MetadataResponse {
     title: Option<String>,
@@ -22,18 +20,16 @@ struct MetadataResponse {
 #[derive(Debug, Serialize)]
 struct MetadataError<'a> {
     message: &'a str,
-    inner_error: Option<String>,
 }
 
 pub async fn metadata_handler(Path(url): Path<Url>) -> Response {
     let page = match reqwest::get(url).await {
         Ok(res) => res.text().await.context("failed to get page text").unwrap(),
-        Err(err) => {
+        Err(_) => {
             return (
                 StatusCode::BAD_GATEWAY,
                 Json(MetadataError {
-                    message: "Failed to send request to upstream server: .",
-                    inner_error: Some(err.to_string()),
+                    message: "Failed to send request to upstream server.",
                 }),
             )
                 .into_response();

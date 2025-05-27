@@ -17,8 +17,6 @@ use std::{
 use tracing::{debug, warn};
 use url::Url;
 
-pub const PROXY_ENDPOINT: &str = "/proxy/{url}";
-
 #[derive(Debug, Deserialize)]
 pub struct ProxyRequestQueryParams {
     /// The content format to return after proxying.
@@ -146,8 +144,8 @@ pub async fn proxy_handler(
     // Get the cache control header sent to us if one is available.
     let cache_control_header = upstream_response
         .headers()
-        .get(reqwest::header::CACHE_CONTROL)
-        .map(|h| HeaderValue::from_str(h.to_str().unwrap()).unwrap());
+        .get(header::CACHE_CONTROL)
+        .map(|header| HeaderValue::from_str(header.to_str().unwrap()).unwrap());
 
     // Ensure that the response contains a response body.
     let Ok(mut req_body_bytes) = upstream_response.bytes().await else {
@@ -192,8 +190,6 @@ pub async fn proxy_handler(
                 .into_response();
         };
 
-        let mut buffer: Vec<u8> = Vec::new();
-
         // Conditionally apply resizing if requested.
         if let Some(resize) = query.0.size {
             debug!("Applying resize to requested image");
@@ -211,6 +207,7 @@ pub async fn proxy_handler(
 
         // Write image using either the original or requested image format
         // then overwrite the request body and content_type values.
+        let mut buffer = Vec::new();
         if image
             .write_to(&mut BufWriter::new(Cursor::new(&mut buffer)), image_format)
             .is_err()
@@ -223,7 +220,6 @@ pub async fn proxy_handler(
             )
                 .into_response();
         };
-
         req_body_bytes = Bytes::from_iter(buffer);
         content_type = Mime::from_str(image_format.to_mime_type())
             .expect("image format mime type should be a valid format");
