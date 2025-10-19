@@ -1,6 +1,6 @@
 #[cfg(feature = "cache-moka")]
 #[cfg(feature = "cache-cacache")]
-compile_error!("You can only enable one caching backend");
+compile_error!("You can only enable one cache backend");
 
 use anyhow::Result;
 use reqwest::redirect::Policy;
@@ -43,12 +43,8 @@ pub fn build_http_client(args: BuildHttpClientArgs) -> Result<HttpClient> {
             .timeout(args.request_timeout)
             .build()?,
     );
-
-    #[cfg(feature = "cache-moka")]
+    #[cfg(any(feature = "cache-moka", feature = "cache-cacache"))]
     let builder = add_cache(builder)?;
-    #[cfg(feature = "cache-cacache")]
-    let builder = add_cache(builder)?;
-
     Ok(builder.build())
 }
 

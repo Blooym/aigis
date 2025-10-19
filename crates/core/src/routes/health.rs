@@ -1,3 +1,5 @@
-pub async fn health_handler() -> &'static str {
-    "OK"
+use axum::http::StatusCode;
+
+pub async fn health_handler() -> StatusCode {
+    StatusCode::OK
 }

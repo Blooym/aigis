@@ -2,9 +2,9 @@ use anyhow::Context;
 use axum::{
     Json,
     extract::Path,
+    http::StatusCode,
     response::{IntoResponse, Response},
 };
-use reqwest::StatusCode;
 use scraper::{Html, Selector};
 use serde::Serialize;
 use std::collections::HashMap;

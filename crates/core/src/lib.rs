@@ -24,7 +24,7 @@ use axum::{
 use http_client::HttpClient;
 use mime::Mime;
 use reqwest::header;
-use std::{net::SocketAddr, time::Duration};
+use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tokio::{net::TcpListener, signal};
 use tower_http::{
     catch_panic::CatchPanicLayer,
@@ -47,7 +47,7 @@ use url::Url;
 /// server.start(&SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080)).await.unwrap();
 /// # }
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct AigisServer {
     router_inner: Router,
 }
@@ -76,7 +76,7 @@ pub struct ProxySettings {
 
     /// The maximum Content-Lenth that can be proxied.
     /// Anything larger than this value will not be sent and an error will shown instead.
-    pub max_size: u64,
+    pub max_content_length: u64,
 
     /// [`Url`]s that are allowed to be proxied.
     ///
@@ -84,16 +84,16 @@ pub struct ProxySettings {
     pub allowed_domains: Option<Vec<Url>>,
 
     /// The maximum resolution that can be requested for content that supports resizing.
-    pub max_content_rescale_resolution: u32,
+    pub max_rescale_resolution: u32,
 }
 
 /// Configuration options used when making any call to an upstream service regardless of route.
 #[derive(Debug, Clone)]
 pub struct UpstreamSettings {
     /// Headers that will be passed on from the client to the upstream server verbatim.
-    pub pass_headers: Option<Vec<String>>,
+    pub forwarded_headers: Option<Vec<String>>,
 
-    /// Whether or not to allow invalid/expired/forged TLS certificates when making upstream requests.
+    /// Whether to allow invalid/expired/forged TLS certificates when making upstream requests.
     ///
     /// **Enabling this is dangerous and is usually not necessary.**
     pub allow_invalid_certs: bool,
@@ -105,48 +105,15 @@ pub struct UpstreamSettings {
     /// The maximum amount of redirects to follow when making a request to an upstream server before abandoning the request.
     pub max_redirects: usize,
 
-    /// Whether or not to send the client the `Cache-Control` header value that was received when making the
+    /// Whether to send the client the `Cache-Control` header value that was received when making the
     /// request to the upstream server if one is available.
     ///
     /// If one of the `cache-*` crate features are enabled the request will already be cached server-side for that requested duration,
     /// so sending the `Cache-Control` header to the client is favourable behaviour as it can sometimes lighten server load.
-    pub use_received_cache_headers: bool,
+    pub use_cache_headers: bool,
 }
 
-impl Default for AigisServerSettings {
-    fn default() -> Self {
-        Self {
-            request_timeout: 10,
-            proxy_settings: ProxySettings::default(),
-            upstream_settings: UpstreamSettings::default(),
-        }
-    }
-}
-
-impl Default for ProxySettings {
-    fn default() -> Self {
-        Self {
-            allowed_mimetypes: vec![mime::IMAGE_STAR],
-            allowed_domains: None,
-            max_size: 100000000,
-            max_content_rescale_resolution: 1024,
-        }
-    }
-}
-
-impl Default for UpstreamSettings {
-    fn default() -> Self {
-        Self {
-            allow_invalid_certs: false,
-            max_redirects: 10,
-            pass_headers: None,
-            request_timeout: 30,
-            use_received_cache_headers: true,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct AppState {
     client: HttpClient,
     settings: AigisServerSettings,
@@ -171,7 +138,7 @@ impl AigisServer {
             .layer(NormalizePathLayer::trim_trailing_slash())
             .layer(CatchPanicLayer::new())
             .layer(axum_middleware::from_fn(AigisServer::header_middleware))
-            .with_state(AppState {
+            .with_state(Arc::new(AppState {
                 client: build_http_client(BuildHttpClientArgs {
                     allow_invalid_certs: settings.upstream_settings.allow_invalid_certs,
                     max_redirects: settings.upstream_settings.max_redirects,
@@ -180,7 +147,7 @@ impl AigisServer {
                     ),
                 })?,
                 settings,
-            });
+            }));
 
         Ok(Self {
             router_inner: router,

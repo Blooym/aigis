@@ -8,11 +8,12 @@ use axum::{
 };
 use bytes::Bytes;
 use image::{ImageFormat, ImageReader, imageops::FilterType};
-use mime::*;
+use mime::Mime;
 use serde::{Deserialize, Serialize};
 use std::{
     io::{BufReader, BufWriter, Cursor},
     str::FromStr,
+    sync::Arc,
 };
 use tracing::{debug, warn};
 use url::Url;
@@ -22,7 +23,7 @@ pub struct ProxyRequestQueryParams {
     /// The content format to return after proxying.
     /// If the content does not have support implemented for format adjustments
     /// then this field will be ignored.
-    pub format: Option<String>,
+    pub format: Option<ImageFormat>,
 
     /// The content size to return after proxying (with aspect ratio maintained).
     /// If the content does not have implemented support size adjustments
@@ -36,13 +37,13 @@ struct ProxyError<'a> {
 }
 
 pub async fn proxy_handler(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     Path(url): Path<Url>,
     headers: HeaderMap,
     query: Query<ProxyRequestQueryParams>,
 ) -> Response {
     // If allowed_domains is enabled, check if this domain is allowed.
-    if let Some(allowed_domains) = state.settings.proxy_settings.allowed_domains {
+    if let Some(allowed_domains) = &state.settings.proxy_settings.allowed_domains {
         if !allowed_domains.contains(&url) {
             return (
                 StatusCode::BAD_REQUEST,
@@ -56,9 +57,9 @@ pub async fn proxy_handler(
 
     // Make a request to the upstream, passing any headers that have been configured.
     let mut request = state.client.get(url);
-    if let Some(pass_headers) = state.settings.upstream_settings.pass_headers {
+    if let Some(pass_headers) = &state.settings.upstream_settings.forwarded_headers {
         for pass_header in pass_headers {
-            if let Some(header_value) = headers.get(&pass_header) {
+            if let Some(header_value) = headers.get(pass_header) {
                 if let Ok(header_value_str) = header_value.to_str() {
                     debug!("Attaching header {pass_header} to upstream request");
                     request = request.header(pass_header, header_value_str);
@@ -130,7 +131,7 @@ pub async fn proxy_handler(
         )
             .into_response();
     };
-    if content_length > state.settings.proxy_settings.max_size {
+    if content_length > state.settings.proxy_settings.max_content_length {
         return (
             StatusCode::BAD_REQUEST,
             Json(ProxyError {
@@ -170,11 +171,7 @@ pub async fn proxy_handler(
             )
                 .into_response();
         };
-        let image_format = query
-            .0
-            .format
-            .map(|s| ImageFormat::from_extension(s).unwrap_or(mime_image_type))
-            .unwrap_or(mime_image_type);
+        let image_format = query.0.format.unwrap_or(mime_image_type);
 
         // Decode image
         let Ok(mut image) =
@@ -193,7 +190,7 @@ pub async fn proxy_handler(
         // Conditionally apply resizing if requested.
         if let Some(resize) = query.0.size {
             debug!("Applying resize to requested image");
-            if resize > state.settings.proxy_settings.max_content_rescale_resolution {
+            if resize > state.settings.proxy_settings.max_rescale_resolution {
                 return (
                     StatusCode::BAD_REQUEST,
                     Json(ProxyError {
@@ -232,7 +229,7 @@ pub async fn proxy_handler(
     );
 
     // Make cleaner sometime: https://github.com/rust-lang/rust/issues/53667
-    if state.settings.upstream_settings.use_received_cache_headers {
+    if state.settings.upstream_settings.use_cache_headers {
         if let Some(cache_control_header) = cache_control_header {
             response
                 .headers_mut()
