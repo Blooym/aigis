@@ -32,14 +32,14 @@ cache-moka = ["aigis/cache-moka"]
 cache-cacache = ["aigis/cache-cacache"]
 
 [dependencies]
-anyhow = "1.0.97"
+anyhow = "1.0.100"
 aigis = { version = "0.2.3", path = "crates/core", default-features = false }
-bytesize = "2.0.1"
-clap = { version = "4.5.38", features = ["derive", "env"] }
+bytesize = "2.1.0"
+clap = { version = "4.5.49", features = ["derive", "env"] }
 dotenvy = "0.15.7"
-tokio = { version = "1.45.1", features = [
+tokio = { version = "1.48.0", features = [
     "macros",
     "rt-multi-thread",
     "parking_lot",
 ] }
-tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
