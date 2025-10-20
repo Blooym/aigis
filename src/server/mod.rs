@@ -4,14 +4,10 @@
 #[cfg(feature = "native-tls")]
 compile_error!("You can only enable one TLS backend");
 
-pub extern crate mime;
-pub extern crate url;
-
 mod http_client;
 mod mime_util;
 mod routes;
 
-use crate::http_client::{BuildHttpClientArgs, build_http_client};
 use anyhow::Result;
 use axum::{
     Router,
@@ -21,7 +17,7 @@ use axum::{
     response::Response,
     routing::get,
 };
-use http_client::HttpClient;
+use http_client::{BuildHttpClientArgs, HttpClient, build_http_client};
 use mime::Mime;
 use reqwest::header;
 use std::{net::SocketAddr, sync::Arc, time::Duration};

@@ -1,16 +1,17 @@
-use aigis::{
-    AigisServer, AigisServerSettings, ProxySettings, UpstreamSettings,
-    mime::{IMAGE_STAR, Mime},
-    url::Url,
-};
+mod server;
+
 use anyhow::Result;
 use bytesize::ByteSize;
 use clap::Parser;
-use core::{net::SocketAddr, str::FromStr};
+use core::net::SocketAddr;
+use core::str::FromStr;
 use dotenvy::dotenv;
+use mime::{IMAGE_STAR, Mime};
+use server::{AigisServer, AigisServerSettings, ProxySettings, UpstreamSettings};
 use tracing_subscriber::EnvFilter;
+use url::Url;
 
-#[derive(Debug, Parser)]
+#[derive(Parser)]
 #[command(author, version, about, long_about)]
 struct Arguments {
     /// Internet socket address that the server should be ran on.

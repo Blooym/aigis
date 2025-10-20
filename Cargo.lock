@@ -33,6 +33,8 @@ dependencies = [
  "anyhow",
  "axum",
  "bytes",
+ "bytesize",
+ "clap",
  "dirs",
  "dotenvy",
  "http-cache-reqwest",
@@ -46,20 +48,8 @@ dependencies = [
  "tokio",
  "tower-http",
  "tracing",
- "url",
-]
-
-[[package]]
-name = "aigis-bin"
-version = "0.2.3"
-dependencies = [
- "aigis",
- "anyhow",
- "bytesize",
- "clap",
- "dotenvy",
- "tokio",
  "tracing-subscriber",
+ "url",
 ]
 
 [[package]]
