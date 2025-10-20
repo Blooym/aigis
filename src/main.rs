@@ -10,6 +10,9 @@ use server::{AigisServer, AigisServerSettings, ProxySettings, UpstreamSettings};
 use tracing_subscriber::EnvFilter;
 use url::Url;
 
+// TODO: Create a cache implementation for storing request responses, including content transforms
+// and metadata.
+
 #[derive(Parser)]
 #[command(author, version, about, long_about)]
 struct Arguments {
@@ -133,7 +136,6 @@ async fn main() -> Result<()> {
     AigisServer::new(AigisServerSettings {
         request_timeout: args.request_timeout,
         request_proxy: None,
-        use_request_cache: true,
         proxy_settings: ProxySettings {
             allowed_domains: args.proxy_allowed_domains.map(|d| d.into_boxed_slice()),
             allowed_mimetypes: args.proxy_allowed_mimetypes.into_boxed_slice(),

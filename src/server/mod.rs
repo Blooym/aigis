@@ -46,9 +46,6 @@ pub struct AigisServerSettings {
     /// The Socks5 proxy to use for all outgoing requests.
     pub request_proxy: Option<Url>,
 
-    /// Whether to cache requests on-disk for the duration of their Cache-Control lifetime.
-    pub use_request_cache: bool,
-
     /// See [`UpstreamSettings`].
     pub upstream_settings: UpstreamSettings,
 
@@ -111,10 +108,10 @@ impl AigisServer {
     /// Create a new server with the provided settings.
     pub fn new(settings: AigisServerSettings) -> Result<Self> {
         let router = Router::new()
-            .route("/proxy/{url}", get(routes::proxy_handler))
             .route("/", get(routes::index_handler))
             .route("/health", get(routes::health_handler))
             .route("/metadata/{url}", get(routes::metadata_handler))
+            .route("/proxy/{url}", get(routes::proxy_handler))
             .layer(
                 TraceLayer::new_for_http()
                     .make_span_with(trace::DefaultMakeSpan::new().level(Level::INFO))
@@ -133,11 +130,11 @@ impl AigisServer {
                     request_timeout: Duration::from_secs(
                         settings.upstream_settings.request_timeout,
                     ),
-                    use_request_cache: settings.use_request_cache,
                     proxy: settings
                         .request_proxy
                         .as_ref()
-                        .map(|p| Proxy::all(p.as_str()).unwrap()),
+                        .map(|p| Proxy::all(p.as_str()))
+                        .transpose()?,
                 })?,
                 settings,
             }));

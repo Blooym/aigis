@@ -1,18 +1,17 @@
 use crate::server::{AppState, mime_util};
 use axum::{
     Json,
-    body::Body,
+    body::{Body, Bytes},
     extract::{Path, Query, State},
     http::{HeaderMap, HeaderValue, StatusCode, header},
     response::Response,
 };
-use bytes::Bytes;
+use futures::StreamExt;
 use image::{ImageFormat, ImageReader, imageops::FilterType};
 use infer::MatcherType;
 use mime::{APPLICATION_OCTET_STREAM, Mime};
 use serde::{Deserialize, Serialize};
 use std::{
-    borrow::Cow,
     io::{BufReader, BufWriter, Cursor},
     str::FromStr,
     sync::Arc,
@@ -35,9 +34,9 @@ pub struct ProxyRequestQueryParams {
     pub size: Option<u32>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Serialize)]
 pub struct ProxyError {
-    message: Cow<'static, str>,
+    message: &'static str,
 }
 
 pub async fn proxy_handler(
@@ -51,7 +50,7 @@ pub async fn proxy_handler(
         let domain = url.host_str().ok_or((
             StatusCode::BAD_REQUEST,
             Json(ProxyError {
-                message: Cow::Borrowed("Invalid URL: no host found."),
+                message: "Invalid URL: no host found.",
             }),
         ))?;
         if !allowed_domains
@@ -61,7 +60,7 @@ pub async fn proxy_handler(
             return Err((
                 StatusCode::FORBIDDEN,
                 Json(ProxyError {
-                    message: Cow::Borrowed("Proxying for this domain is not permitted."),
+                    message: "Proxying for this domain is not permitted.",
                 }),
             ));
         }
@@ -81,13 +80,11 @@ pub async fn proxy_handler(
         match request.send().await {
             Ok(data) => {
                 if let Err(err) = data.error_for_status_ref() {
+                    warn!("Upstream returned unsuccessful status code {err:?}");
                     return Err((
                         StatusCode::BAD_GATEWAY,
                         Json(ProxyError {
-                            message: Cow::Owned(format!(
-                                "Upstream server responded with an unsuccessful status code: {}",
-                                err
-                            )),
+                            message: "Unable to retrieve content from upstream server.",
                         }),
                     ));
                 }
@@ -99,7 +96,7 @@ pub async fn proxy_handler(
                     return Err((
                         StatusCode::GATEWAY_TIMEOUT,
                         Json(ProxyError {
-                            message: Cow::Borrowed("Upstream server failed to respond in time."),
+                            message: "Upstream server failed to respond in time.",
                         }),
                     ));
                 }
@@ -107,40 +104,27 @@ pub async fn proxy_handler(
                     return Err((
                         StatusCode::BAD_GATEWAY,
                         Json(ProxyError {
-                            message: Cow::Borrowed("Upstream server redirected too many times."),
+                            message: "Upstream server redirected too many times.",
                         }),
                     ));
                 }
                 return Err((
                     StatusCode::BAD_GATEWAY,
                     Json(ProxyError {
-                        message: Cow::Borrowed("Failed to send request to upstream server."),
+                        message: "Failed to send request to upstream server.",
                     }),
                 ));
             }
         }
     };
 
-    // Ensure that the Content-Length header value is below the servers max size.
-    //
-    // NOTE: This does not guarentee that the content is the size it reports,
-    // so further analysis should be done when downloading the body via a stream.
-    if let Some(content_length) = upstream_response.content_length() {
-        if content_length > state.settings.proxy_settings.max_content_length {
-            return Err((
-                StatusCode::PAYLOAD_TOO_LARGE,
-                Json(ProxyError {
-                    message: Cow::Borrowed(
-                        "Refusing to proxy requested content as it exceeds the maximum size.",
-                    ),
-                }),
-            ));
-        }
-    } else {
+    if let Some(content_length) = upstream_response.content_length()
+        && content_length > state.settings.proxy_settings.max_content_length
+    {
         return Err((
-            StatusCode::BAD_GATEWAY,
+            StatusCode::PAYLOAD_TOO_LARGE,
             Json(ProxyError {
-                message: Cow::Borrowed("Unable to resolve content length of requested content."),
+                message: "Refusing to proxy requested content as it exceeds the maximum size.",
             }),
         ));
     };
@@ -163,10 +147,7 @@ pub async fn proxy_handler(
             return Err((
                 StatusCode::FORBIDDEN,
                 Json(ProxyError {
-                    message: Cow::Owned(format!(
-                        "Refusing to proxy the request content as proxying for '{}' is not enabled on this server.",
-                        content_type.essence_str()
-                    )),
+                    message: "Refusing to proxy content as proxying the content type is not enabled on this server.",
                 }),
             ));
         }
@@ -174,30 +155,38 @@ pub async fn proxy_handler(
         return Err((
             StatusCode::BAD_GATEWAY,
             Json(ProxyError {
-                message: Cow::Borrowed(
-                    "Upstream server sent a missing or invalid Content-Type header.",
-                ),
+                message: "Upstream server sent a missing or invalid Content-Type header.",
             }),
         ));
     };
 
     // Get the cache control header sent to us if one is available.
-    let cache_control_header = upstream_response
-        .headers()
-        .get(header::CACHE_CONTROL)
-        .and_then(|v| v.to_str().ok())
-        .and_then(|s| s.parse().ok());
-
-    // Download content.
-    let Ok(mut req_body_bytes) = upstream_response.bytes().await else {
-        return Err((
-            StatusCode::BAD_GATEWAY,
-            Json(ProxyError {
-                message: Cow::Borrowed(
-                    "Something went wrong whilst obtaining the content from upstream.",
-                ),
-            }),
-        ));
+    let headers = upstream_response.headers().clone();
+    let mut req_body_bytes = {
+        let mut stream = upstream_response.bytes_stream();
+        let mut buffer = vec![];
+        while let Some(chunk_result) = stream.next().await {
+            let chunk = chunk_result.map_err(|_| {
+                (
+                    StatusCode::BAD_GATEWAY,
+                    Json(ProxyError {
+                        message: "Something went wrong whilst obtaining the content from upstream.",
+                    }),
+                )
+            })?;
+            if buffer.len() as u64 + chunk.len() as u64
+                > state.settings.proxy_settings.max_content_length
+            {
+                return Err((
+                    StatusCode::PAYLOAD_TOO_LARGE,
+                    Json(ProxyError {
+                        message: "Content exceeded maximum allowed size.",
+                    }),
+                ));
+            }
+            buffer.extend_from_slice(&chunk);
+        }
+        Bytes::from(buffer)
     };
 
     // Infer mimetype by magic numbers.
@@ -220,10 +209,7 @@ pub async fn proxy_handler(
                 return Err((
                     StatusCode::FORBIDDEN,
                     Json(ProxyError {
-                        message: Cow::Owned(format!(
-                            "Refusing to proxy content as proxying for '{}' is not enabled on this server.",
-                            inferred_mime.essence_str()
-                        )),
+                        message: "Refusing to proxy content as proxying the content type is not enabled on this server.",
                     }),
                 ));
             }
@@ -249,9 +235,7 @@ pub async fn proxy_handler(
                 return Err((
                     StatusCode::BAD_GATEWAY,
                     Json(ProxyError {
-                        message: Cow::Borrowed(
-                            "Unable to determine the MIME type of the upstream content.",
-                        ),
+                        message: "Unable to determine the MIME type of the upstream content.",
                     }),
                 ));
             }
@@ -266,9 +250,7 @@ pub async fn proxy_handler(
                 return Err((
                     StatusCode::BAD_REQUEST,
                     Json(ProxyError {
-                        message: Cow::Borrowed(
-                            "Image modifications were requested on an unsupported content format.",
-                        ),
+                        message: "Image modifications were requested on an unsupported content format.",
                     }),
                 ));
             };
@@ -281,9 +263,7 @@ pub async fn proxy_handler(
                 (
                     StatusCode::BAD_GATEWAY,
                     Json(ProxyError {
-                        message: Cow::Borrowed(
-                            "Unable to decode image received from upstream server.",
-                        ),
+                        message: "Unable to decode image received from upstream server.",
                     }),
                 )
             })?;
@@ -294,9 +274,7 @@ pub async fn proxy_handler(
                     return Err((
                         StatusCode::BAD_REQUEST,
                         Json(ProxyError {
-                            message: Cow::Borrowed(
-                                "The requested image size was too large to be processed by this server.",
-                            ),
+                            message: "The requested image size was too large to be processed by this server.",
                         }),
                     ));
                 }
@@ -315,9 +293,7 @@ pub async fn proxy_handler(
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     Json(ProxyError {
-                        message: Cow::Borrowed(
-                            "An error occurred whilst attempting to process image modifications.",
-                        ),
+                        message:"An error occurred whilst attempting to process image modifications.",
                     }),
                 )
             })?;
@@ -339,12 +315,32 @@ pub async fn proxy_handler(
         header::CONTENT_TYPE,
         HeaderValue::from_str(content_type.essence_str()).unwrap(),
     );
-    if let Some(cache_control_header) = cache_control_header
-        && state.settings.upstream_settings.use_cache_headers
-    {
-        response
-            .headers_mut()
-            .append(header::CACHE_CONTROL, cache_control_header);
+
+    if state.settings.upstream_settings.use_cache_headers {
+        if let Some(cache_control_header) = headers
+            .get(header::CACHE_CONTROL)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| s.parse().ok())
+        {
+            response
+                .headers_mut()
+                .append(header::CACHE_CONTROL, cache_control_header);
+        }
+        if let Some(age_header) = headers
+            .get(header::AGE)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| s.parse().ok())
+        {
+            response.headers_mut().append(header::AGE, age_header);
+        }
+        if let Some(etag_header) = headers
+            .get(header::ETAG)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| s.parse().ok())
+        {
+            response.headers_mut().append(header::ETAG, etag_header);
+        }
     }
+
     Ok(response)
 }
