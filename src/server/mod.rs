@@ -17,10 +17,11 @@ use axum::{
     response::Response,
     routing::get,
 };
+use core::{net::SocketAddr, time::Duration};
 use http_client::{BuildHttpClientArgs, HttpClient, build_http_client};
 use mime::Mime;
-use reqwest::header;
-use std::{net::SocketAddr, sync::Arc, time::Duration};
+use reqwest::{Proxy, header};
+use std::sync::Arc;
 use tokio::{net::TcpListener, signal};
 use tower_http::{
     catch_panic::CatchPanicLayer,
@@ -31,18 +32,6 @@ use tower_http::{
 use tracing::{Level, info};
 use url::Url;
 
-/// The Aigis server itself.
-/// # Example
-/// ```rust,no_run
-/// use std::net::{SocketAddr, IpAddr, Ipv4Addr};
-/// use aigis::{AigisServer, AigisServerSettings};
-///
-/// # #[tokio::main]
-/// # async fn main() {
-/// let server = AigisServer::new(AigisServerSettings::default()).unwrap();
-/// server.start(&SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080)).await.unwrap();
-/// # }
-/// ```
 #[derive(Debug)]
 pub struct AigisServer {
     router_inner: Router,
@@ -54,7 +43,7 @@ pub struct AigisServerSettings {
     /// How many seconds that can elapse before a request is abandoned for taking too long.
     pub request_timeout: u64,
 
-    /// The socks5 proxy to use for all outgoing requests.
+    /// The Socks5 proxy to use for all outgoing requests.
     pub request_proxy: Option<Url>,
 
     /// Whether to cache requests on-disk for the duration of their Cache-Control lifetime.
@@ -145,7 +134,10 @@ impl AigisServer {
                         settings.upstream_settings.request_timeout,
                     ),
                     use_request_cache: settings.use_request_cache,
-                    proxy: None,
+                    proxy: settings
+                        .request_proxy
+                        .as_ref()
+                        .map(|p| Proxy::all(p.as_str()).unwrap()),
                 })?,
                 settings,
             }));

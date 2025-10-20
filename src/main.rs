@@ -4,7 +4,6 @@ use anyhow::Result;
 use bytesize::ByteSize;
 use clap::Parser;
 use core::net::SocketAddr;
-use core::str::FromStr;
 use dotenvy::dotenv;
 use mime::{IMAGE_STAR, Mime};
 use server::{AigisServer, AigisServerSettings, ProxySettings, UpstreamSettings};
@@ -82,7 +81,7 @@ struct Arguments {
     #[arg(
         long = "proxy-max-content-length",
         env = "AIGIS_PROXY_MAX_CONTENT_LENGTH",
-        default_value = "50MB"
+        default_value = "20MB"
     )]
     proxy_max_content_length: ByteSize,
 
@@ -92,8 +91,7 @@ struct Arguments {
         long = "proxy-allowed-mimetypes",
         env = "AIGIS_PROXY_ALLOWED_MIMETYPES",
         default_values_t = [
-            IMAGE_STAR,
-            Mime::from_str("video/*").unwrap()
+            IMAGE_STAR
         ],
         value_delimiter = ','
     )]

@@ -1,4 +1,3 @@
-# crates.io is done manually for now.
 name: "Release"
 run-name: "Release ${{ github.ref_name }}"
 on:
@@ -28,7 +27,7 @@ jobs:
         with:
           toolchain: stable
           components: rustfmt, clippy
-          cache: false
+          cache: true
 
       - name: Build Project
         run: cargo build --all

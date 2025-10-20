@@ -26,7 +26,6 @@ pub struct ProxyRequestQueryParams {
     ///
     /// If the content does support format adjustments.
     /// or an invalid option for the content is used, this will be ignored.
-    #[serde(rename = "lowercase")]
     pub format: Option<ImageFormat>,
 
     /// The content size to return (with aspect ratio maintained).
