@@ -11,35 +11,31 @@ rust-version = "1.85"
 edition = "2024"
 
 [features]
-default = ["rustls-tls", "cache-moka"]
-# TLS Backends
+default = ["rustls-tls"]
 rustls-tls = ["reqwest/rustls-tls"]
 native-tls = ["reqwest/native-tls"]
-# Caching Backends
-cache-moka = ["http-cache-reqwest", "http-cache-reqwest/manager-moka"]
-cache-cacache = [
-    "http-cache-reqwest",
-    "http-cache-reqwest/manager-cacache",
-    "dirs",
-]
 
 [dependencies]
 anyhow = { version = "1.0.100", features = ["backtrace"] }
 axum = { version = "0.8.6", features = ["http2", "tracing"] }
 bytes = "1.10.1"
 dotenvy = "0.15.7"
-http-cache-reqwest = { version = "0.16.0", optional = true, default-features = false }
-dirs = { version = "6.0.0", optional = true, default-features = false }
+http-cache-reqwest = { version = "0.16.0", features = [
+    "manager-cacache",
+    "manager-moka",
+] }
+dirs = { version = "6.0.0", default-features = false }
 image = { version = "0.25.8", features = ["serde"] }
 mime = "0.3.17"
 reqwest = { version = "0.12.24", default-features = false, features = [
     "system-proxy",
     "charset",
     "http2",
+    "socks",
 ] }
 reqwest-middleware = { version = "0.4.2" }
 serde = { version = "1.0.228", features = ["derive"] }
-tokio = { version = "1.48.0", features = ["signal", "net"] }
+tokio = { version = "1.48.0", features = ["time", "signal", "net"] }
 tower-http = { version = "0.6.6", features = [
     "catch-panic",
     "normalize-path",
@@ -49,6 +45,7 @@ tower-http = { version = "0.6.6", features = [
 tracing = "0.1.41"
 url = "2.5.7"
 scraper = "0.24.0"
+infer = "0.19.0"
 
 [lints.rust]
 missing_docs = "warn"

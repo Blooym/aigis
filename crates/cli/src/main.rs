@@ -133,16 +133,20 @@ async fn main() -> Result<()> {
 
     AigisServer::new(AigisServerSettings {
         request_timeout: args.request_timeout,
+        request_proxy: None,
+        use_request_cache: true,
         proxy_settings: ProxySettings {
-            allowed_domains: args.proxy_allowed_domains,
-            allowed_mimetypes: args.proxy_allowed_mimetypes,
+            allowed_domains: args.proxy_allowed_domains.map(|d| d.into_boxed_slice()),
+            allowed_mimetypes: args.proxy_allowed_mimetypes.into_boxed_slice(),
             max_content_length: args.proxy_max_content_length.as_u64(),
             max_rescale_resolution: args.proxy_max_rescale_res,
         },
         upstream_settings: UpstreamSettings {
             allow_invalid_certs: args.upstream_allow_invalid_certs,
             max_redirects: args.upstream_max_redirects,
-            forwarded_headers: args.upstream_forwarded_headers,
+            forwarded_headers: args
+                .upstream_forwarded_headers
+                .map(|h| h.into_boxed_slice()),
             request_timeout: args.request_timeout,
             use_cache_headers: args.upstream_use_cache_headers,
         },

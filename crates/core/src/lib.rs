@@ -58,6 +58,12 @@ pub struct AigisServerSettings {
     /// How many seconds that can elapse before a request is abandoned for taking too long.
     pub request_timeout: u64,
 
+    /// The socks5 proxy to use for all outgoing requests.
+    pub request_proxy: Option<Url>,
+
+    /// Whether to cache requests on-disk for the duration of their Cache-Control lifetime.
+    pub use_request_cache: bool,
+
     /// See [`UpstreamSettings`].
     pub upstream_settings: UpstreamSettings,
 
@@ -72,7 +78,7 @@ pub struct ProxySettings {
     /// received from the upstream server.
     ///
     /// Supports type wildcards such as 'image/*'.
-    pub allowed_mimetypes: Vec<Mime>,
+    pub allowed_mimetypes: Box<[Mime]>,
 
     /// The maximum Content-Lenth that can be proxied.
     /// Anything larger than this value will not be sent and an error will shown instead.
@@ -81,7 +87,7 @@ pub struct ProxySettings {
     /// [`Url`]s that are allowed to be proxied.
     ///
     /// Does not support subdomain wildcards, each domain must be added seperately.
-    pub allowed_domains: Option<Vec<Url>>,
+    pub allowed_domains: Option<Box<[Url]>>,
 
     /// The maximum resolution that can be requested for content that supports resizing.
     pub max_rescale_resolution: u32,
@@ -91,7 +97,7 @@ pub struct ProxySettings {
 #[derive(Debug, Clone)]
 pub struct UpstreamSettings {
     /// Headers that will be passed on from the client to the upstream server verbatim.
-    pub forwarded_headers: Option<Vec<String>>,
+    pub forwarded_headers: Option<Box<[String]>>,
 
     /// Whether to allow invalid/expired/forged TLS certificates when making upstream requests.
     ///
@@ -107,9 +113,6 @@ pub struct UpstreamSettings {
 
     /// Whether to send the client the `Cache-Control` header value that was received when making the
     /// request to the upstream server if one is available.
-    ///
-    /// If one of the `cache-*` crate features are enabled the request will already be cached server-side for that requested duration,
-    /// so sending the `Cache-Control` header to the client is favourable behaviour as it can sometimes lighten server load.
     pub use_cache_headers: bool,
 }
 
@@ -145,6 +148,8 @@ impl AigisServer {
                     request_timeout: Duration::from_secs(
                         settings.upstream_settings.request_timeout,
                     ),
+                    use_request_cache: settings.use_request_cache,
+                    proxy: None,
                 })?,
                 settings,
             }));

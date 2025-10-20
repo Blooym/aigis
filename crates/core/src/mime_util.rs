@@ -1,6 +1,6 @@
 use mime::Mime;
 
-pub fn is_mime_allowed(mime: &Mime, allowed: &Vec<Mime>) -> bool {
+pub fn is_mime_allowed(mime: &Mime, allowed: &[Mime]) -> bool {
     const WILDCARD: &str = "*";
 
     if allowed.is_empty() {
