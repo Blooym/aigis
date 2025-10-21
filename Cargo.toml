@@ -22,13 +22,15 @@ native-tls = ["reqwest/native-tls"]
 anyhow = { version = "1.0.100", features = ["backtrace"] }
 axum = { version = "0.8.6", features = ["http2", "tracing"] }
 bytesize = "2.1.0"
-clap = { version = "4.5.49", features = ["derive", "env"] }
+clap = { version = "4.5.50", features = ["derive", "env"] }
 directories = "6.0.0"
 dotenvy = "0.15.7"
 futures = "0.3.31"
+http-cache-semantics = { version = "2.1.0", features = ["reqwest"] }
 image = { version = "0.25.8", features = ["serde"] }
 infer = "0.19.0"
 mime = "0.3.17"
+moka = { version = "0.12.11", features = ["future", "logging"] }
 reqwest = { version = "0.12.24", default-features = false, features = [
     "charset",
     "http2",

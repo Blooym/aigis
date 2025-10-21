@@ -24,7 +24,6 @@ pub fn build_http_client(args: BuildHttpClientArgs) -> Result<HttpClient> {
             ")"
         ))
         .danger_accept_invalid_certs(args.allow_invalid_certs)
-        .connect_timeout(Duration::from_secs(5))
         .timeout(args.request_timeout);
     if let Some(proxy) = args.proxy {
         builder = builder.proxy(proxy);

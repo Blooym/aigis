@@ -4,6 +4,7 @@
 #[cfg(feature = "native-tls")]
 compile_error!("You can only enable one TLS backend");
 
+mod cache;
 mod http_client;
 mod mime_util;
 mod routes;
@@ -17,6 +18,7 @@ use axum::{
     response::Response,
     routing::get,
 };
+use cache::{Cache, build_response_cache};
 use core::{net::SocketAddr, time::Duration};
 use http_client::{BuildHttpClientArgs, HttpClient, build_http_client};
 use mime::Mime;
@@ -32,14 +34,12 @@ use tower_http::{
 use tracing::{Level, info};
 use url::Url;
 
-#[derive(Debug)]
-pub struct AigisServer {
-    router_inner: Router,
+pub struct Server {
+    router: Router,
 }
 
 /// Settings to run the Aigis server with.
-#[derive(Debug, Clone)]
-pub struct AigisServerSettings {
+pub struct Settings {
     /// How many seconds that can elapse before a request is abandoned for taking too long.
     pub request_timeout: u64,
 
@@ -54,7 +54,6 @@ pub struct AigisServerSettings {
 }
 
 /// Configuration options used for the `proxy` route.
-#[derive(Debug, Clone)]
 pub struct ProxySettings {
     /// [`Mime`]s that are allowed to be proxied, checked against the Content-Type header
     /// received from the upstream server.
@@ -76,7 +75,6 @@ pub struct ProxySettings {
 }
 
 /// Configuration options used when making any call to an upstream service regardless of route.
-#[derive(Debug, Clone)]
 pub struct UpstreamSettings {
     /// Headers that will be passed on from the client to the upstream server verbatim.
     pub forwarded_headers: Option<Box<[String]>>,
@@ -98,15 +96,15 @@ pub struct UpstreamSettings {
     pub use_cache_headers: bool,
 }
 
-#[derive(Debug)]
 struct AppState {
-    client: HttpClient,
-    settings: AigisServerSettings,
+    http_client: HttpClient,
+    response_cache: Cache,
+    server_settings: Settings,
 }
 
-impl AigisServer {
+impl Server {
     /// Create a new server with the provided settings.
-    pub fn new(settings: AigisServerSettings) -> Result<Self> {
+    pub fn new(settings: Settings) -> Result<Self> {
         let router = Router::new()
             .route("/", get(routes::index_handler))
             .route("/health", get(routes::health_handler))
@@ -122,9 +120,9 @@ impl AigisServer {
             )))
             .layer(NormalizePathLayer::trim_trailing_slash())
             .layer(CatchPanicLayer::new())
-            .layer(axum_middleware::from_fn(AigisServer::header_middleware))
+            .layer(axum_middleware::from_fn(Self::header_middleware))
             .with_state(Arc::new(AppState {
-                client: build_http_client(BuildHttpClientArgs {
+                http_client: build_http_client(BuildHttpClientArgs {
                     allow_invalid_certs: settings.upstream_settings.allow_invalid_certs,
                     max_redirects: settings.upstream_settings.max_redirects,
                     request_timeout: Duration::from_secs(
@@ -136,19 +134,18 @@ impl AigisServer {
                         .map(|p| Proxy::all(p.as_str()))
                         .transpose()?,
                 })?,
-                settings,
+                response_cache: build_response_cache(50 * 1024 * 1024),
+                server_settings: settings,
             }));
 
-        Ok(Self {
-            router_inner: router,
-        })
+        Ok(Self { router })
     }
 
     /// Start the server and expose it locally on the provided [`SocketAddr`].
     pub async fn start(self, address: &SocketAddr) -> Result<()> {
         let tcp_listener = TcpListener::bind(&address).await?;
         info!("Listening on http://{}", tcp_listener.local_addr()?);
-        axum::serve(tcp_listener, self.router_inner)
+        axum::serve(tcp_listener, self.router)
             .with_graceful_shutdown(Self::shutdown_signal())
             .await?;
         Ok(())

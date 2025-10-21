@@ -6,12 +6,9 @@ use clap::Parser;
 use core::net::SocketAddr;
 use dotenvy::dotenv;
 use mime::{IMAGE_STAR, Mime};
-use server::{AigisServer, AigisServerSettings, ProxySettings, UpstreamSettings};
+use server::{ProxySettings, Server, Settings, UpstreamSettings};
 use tracing_subscriber::EnvFilter;
 use url::Url;
-
-// TODO: Create a cache implementation for storing request responses, including content transforms
-// and metadata.
 
 #[derive(Parser)]
 #[command(author, version, about, long_about)]
@@ -133,7 +130,7 @@ async fn main() -> Result<()> {
         );
     }
 
-    AigisServer::new(AigisServerSettings {
+    Server::new(Settings {
         request_timeout: args.request_timeout,
         request_proxy: None,
         proxy_settings: ProxySettings {
