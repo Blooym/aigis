@@ -62,18 +62,6 @@ struct Arguments {
     )]
     upstream_allow_invalid_certs: bool,
 
-    /// Whether to send the `Cache-Control` header value that was received from the
-    /// upstream server along with the proxied response.
-    ///
-    /// If one of the `cache-*` crate features are enabled the request will already be cached locally for the requested duration,
-    /// so sending the `Cache-Control` header to the client is favourable behaviour as it can sometimes lighten server load.
-    #[arg(
-        long = "upstream-use-cache-headers",
-        env = "AIGIS_UPSTREAM_USE_CACHE_HEADERS",
-        default_value_t = true
-    )]
-    upstream_use_cache_headers: std::primitive::bool,
-
     /// Maximum Content-Length that can be proxied by this server.
     ///
     /// Note: this is currently not a well-rounded check and relies on the server
@@ -146,7 +134,6 @@ async fn main() -> Result<()> {
                 .upstream_forwarded_headers
                 .map(|h| h.into_boxed_slice()),
             request_timeout: args.request_timeout,
-            use_cache_headers: args.upstream_use_cache_headers,
         },
     })?
     .start(&args.address)

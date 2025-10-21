@@ -46,15 +46,12 @@ pub struct ProxyRequestQueryParams {
 pub struct ProxyResponseWrapper {
     pub body: Bytes,
     pub headers: HeaderMap,
-    pub content_type: HeaderValue,
+    pub cache_policy: Arc<CachePolicy>,
 }
 
 impl CacheSize for ProxyResponseWrapper {
     fn cache_size_shallow(&self) -> usize {
-        std::mem::size_of::<Self>()
-            + self.body.len()
-            + self.headers.capacity()
-            + self.content_type.len()
+        std::mem::size_of::<Self>() + self.body.len() + self.headers.capacity()
     }
 }
 
@@ -85,7 +82,37 @@ pub async fn proxy_handler(
     };
 
     let response_wrapper = match state.response_cache.get(&cache_key).await {
-        Some((CachedResponse::Proxy(data), _)) => data,
+        Some((CachedResponse::Proxy(response_wrapper), _))
+            if !response_wrapper.cache_policy.is_stale(SystemTime::now()) =>
+        {
+            // Check if conditional request and handle accordingly.
+            if request_headers
+                .get(header::IF_NONE_MATCH)
+                .and_then(|v| v.to_str().ok())
+                .map(|etag| etag == cache_key.to_string())
+                .unwrap_or(false)
+            {
+                // Return 304 Not Modified
+                let mut response = Response::builder()
+                    .status(StatusCode::NOT_MODIFIED)
+                    .body(Body::empty())
+                    .unwrap();
+                response
+                    .headers_mut()
+                    .extend(response_wrapper.headers.clone());
+                response.headers_mut().insert(
+                    header::AGE,
+                    response_wrapper
+                        .cache_policy
+                        .age(SystemTime::now())
+                        .as_secs()
+                        .into(),
+                );
+                return Ok(response);
+            }
+            // Non-conditional, proceed as regular cached request.
+            response_wrapper
+        }
         _ => {
             // If allowed_domains is set, check if this domain is included.
             if let Some(allowed_domains) = &state.server_settings.proxy_settings.allowed_domains {
@@ -382,21 +409,36 @@ pub async fn proxy_handler(
                 _ => {}
             };
 
-            // Prepare response wrapper for caching/consumption.
+            // Store specific headers for re-sending from cache.
+            let mut response_headers_to_cache = HeaderMap::new();
+            response_headers_to_cache.insert(header::ETAG, cache_key.into());
+            response_headers_to_cache.insert(
+                header::CONTENT_TYPE,
+                HeaderValue::from_str(content_type.essence_str())
+                    .expect("header value from mime essence string should always be valid"),
+            );
+            if let Some(cache_control_header) = response_headers
+                .get(header::CACHE_CONTROL)
+                .and_then(|v| v.to_str().ok()?.parse().ok())
+            {
+                response_headers_to_cache.insert(header::CACHE_CONTROL, cache_control_header);
+            }
+
+            // Wrap important values and cache the response if allowed.
             let wrapper = ProxyResponseWrapper {
                 body: response_body,
-                content_type: HeaderValue::from_str(content_type.essence_str())
-                    .expect("header value from mime essence string should always be valid"),
-                headers: response_headers,
+                headers: response_headers_to_cache,
+                cache_policy: Arc::new(cache_policy),
             };
-            if cache_policy.is_storable() {
+            if wrapper.cache_policy.is_storable() {
                 state
                     .response_cache
                     .insert(
                         cache_key,
                         (
                             CachedResponse::Proxy(wrapper.clone()),
-                            cache_policy.time_to_live(SystemTime::now()) + Duration::from_secs(60),
+                            wrapper.cache_policy.time_to_live(SystemTime::now())
+                                + Duration::from_secs(60),
                         ),
                     )
                     .await;
@@ -406,27 +448,6 @@ pub async fn proxy_handler(
     };
 
     let mut response = Response::new(Body::from(response_wrapper.body));
-    response
-        .headers_mut()
-        .insert(header::CONTENT_TYPE, response_wrapper.content_type);
-    if state.server_settings.upstream_settings.use_cache_headers {
-        if let Some(cache_control_header) = response_wrapper
-            .headers
-            .get(header::CACHE_CONTROL)
-            .and_then(|v| v.to_str().ok()?.parse().ok())
-        {
-            response
-                .headers_mut()
-                .append(header::CACHE_CONTROL, cache_control_header);
-        }
-        if let Some(etag_header) = response_wrapper
-            .headers
-            .get(header::ETAG)
-            .and_then(|v| v.to_str().ok()?.parse().ok())
-        {
-            response.headers_mut().append(header::ETAG, etag_header);
-        }
-    }
-
+    response.headers_mut().extend(response_wrapper.headers);
     Ok(response)
 }

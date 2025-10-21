@@ -27,6 +27,7 @@ use std::sync::Arc;
 use tokio::{net::TcpListener, signal};
 use tower_http::{
     catch_panic::CatchPanicLayer,
+    compression::{CompressionLayer, predicate::SizeAbove},
     normalize_path::NormalizePathLayer,
     timeout::TimeoutLayer,
     trace::{self, TraceLayer},
@@ -90,10 +91,6 @@ pub struct UpstreamSettings {
 
     /// The maximum amount of redirects to follow when making a request to an upstream server before abandoning the request.
     pub max_redirects: usize,
-
-    /// Whether to send the client the `Cache-Control` header value that was received when making the
-    /// request to the upstream server if one is available.
-    pub use_cache_headers: bool,
 }
 
 struct AppState {
@@ -120,6 +117,7 @@ impl Server {
             )))
             .layer(NormalizePathLayer::trim_trailing_slash())
             .layer(CatchPanicLayer::new())
+            .layer(CompressionLayer::new().compress_when(SizeAbove::default()))
             .layer(axum_middleware::from_fn(Self::header_middleware))
             .with_state(Arc::new(AppState {
                 http_client: build_http_client(BuildHttpClientArgs {

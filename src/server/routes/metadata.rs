@@ -5,6 +5,7 @@ use crate::server::{
 };
 use axum::{
     Json,
+    body::Body,
     extract::{Path, State},
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
@@ -37,6 +38,7 @@ pub struct MetadataResponse {
 pub struct MetadataResponseWrapper {
     pub response: Json<MetadataResponse>,
     pub headers: HeaderMap,
+    pub cache_policy: Arc<CachePolicy>,
 }
 
 impl CacheSize for MetadataResponseWrapper {
@@ -81,7 +83,36 @@ pub async fn metadata_handler(
     };
 
     let wrapped_response = match state.response_cache.get(&cache_key).await {
-        Some((CachedResponse::Metadata(data), _)) => data,
+        Some((CachedResponse::Metadata(response_wrapper), _))
+            if !response_wrapper.cache_policy.is_stale(SystemTime::now()) =>
+        {
+            // Check if conditional request and handle accordingly.
+            if request_headers
+                .get(header::IF_NONE_MATCH)
+                .and_then(|v| v.to_str().ok())
+                .map(|etag| etag == cache_key.to_string())
+                .unwrap_or(false)
+            {
+                let mut response = Response::builder()
+                    .status(StatusCode::NOT_MODIFIED)
+                    .body(Body::empty())
+                    .unwrap();
+                response
+                    .headers_mut()
+                    .extend(response_wrapper.headers.clone());
+                response.headers_mut().insert(
+                    header::AGE,
+                    response_wrapper
+                        .cache_policy
+                        .age(SystemTime::now())
+                        .as_secs()
+                        .into(),
+                );
+                return Ok(response);
+            }
+            // Non-conditional, proceed as regular cached request.
+            response_wrapper
+        }
         _ => {
             let (response, cache_policy) = {
                 let mut request_builder = state.http_client.get(url.as_str());
@@ -225,19 +256,29 @@ pub async fn metadata_handler(
                 }),
             });
 
+            let mut response_headers_to_cache = HeaderMap::new();
+            response_headers_to_cache.insert(header::ETAG, cache_key.into());
+            if let Some(cache_control_header) = response_headers
+                .get(header::CACHE_CONTROL)
+                .and_then(|v| v.to_str().ok()?.parse().ok())
+            {
+                response_headers_to_cache.insert(header::CACHE_CONTROL, cache_control_header);
+            }
+
             let wrapper = MetadataResponseWrapper {
                 response,
-                headers: response_headers,
+                headers: response_headers_to_cache,
+                cache_policy: Arc::new(cache_policy),
             };
-
-            if cache_policy.is_storable() {
+            if wrapper.cache_policy.is_storable() {
                 state
                     .response_cache
                     .insert(
                         cache_key,
                         (
                             CachedResponse::Metadata(wrapper.clone()),
-                            cache_policy.time_to_live(SystemTime::now()) + Duration::from_secs(60),
+                            wrapper.cache_policy.time_to_live(SystemTime::now())
+                                + Duration::from_secs(60),
                         ),
                     )
                     .await;
@@ -248,24 +289,6 @@ pub async fn metadata_handler(
     };
 
     let mut response = wrapped_response.response.into_response();
-    if state.server_settings.upstream_settings.use_cache_headers {
-        if let Some(cache_control_header) = wrapped_response
-            .headers
-            .get(header::CACHE_CONTROL)
-            .and_then(|v| v.to_str().ok()?.parse().ok())
-        {
-            response
-                .headers_mut()
-                .append(header::CACHE_CONTROL, cache_control_header);
-        }
-        if let Some(etag_header) = wrapped_response
-            .headers
-            .get(header::ETAG)
-            .and_then(|v| v.to_str().ok()?.parse().ok())
-        {
-            response.headers_mut().append(header::ETAG, etag_header);
-        }
-    }
-
+    response.headers_mut().extend(wrapped_response.headers);
     Ok(response)
 }

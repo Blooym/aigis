@@ -53,6 +53,10 @@ tower-http = { version = "0.6.6", features = [
     "normalize-path",
     "timeout",
     "trace",
+    "compression-br",
+    "compression-gzip",
+    "compression-deflate",
+    "compression-zstd",
 ] }
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
