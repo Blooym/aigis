@@ -1,8 +1,8 @@
 [package]
-version = "0.2.3"
 name = "aigis"
 description = "A simple and configurable content proxy."
 authors = ["Blooym"]
+version = "0.3.0"
 categories = ["web-programming::http-server", "multimedia::images"]
 license = "AGPL-3.0-only"
 keywords = ["proxy"]

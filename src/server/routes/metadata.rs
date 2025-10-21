@@ -41,33 +41,18 @@ pub struct MetadataResponseWrapper {
 
 impl CacheSize for MetadataResponseWrapper {
     fn cache_size_shallow(&self) -> usize {
-        let mut size = std::mem::size_of::<Self>();
-        size += self
-            .response
-            .title
-            .as_ref()
-            .map(|f| f.capacity())
-            .unwrap_or_default();
-        size += self
-            .response
-            .description
-            .as_ref()
-            .map(|f| f.capacity())
-            .unwrap_or_default();
-        size += self
-            .response
-            .image_url
-            .as_ref()
-            .map(|f| f.capacity())
-            .unwrap_or_default();
-        size += self
-            .response
-            .url
-            .as_ref()
-            .map(|f| f.capacity())
-            .unwrap_or_default();
-        size += self.headers.capacity();
-        size
+        std::mem::size_of::<Self>()
+            + [
+                &self.response.title,
+                &self.response.description,
+                &self.response.image_url,
+                &self.response.url,
+            ]
+            .into_iter()
+            .flatten()
+            .map(|s| s.capacity())
+            .sum::<usize>()
+            + self.headers.capacity()
     }
 }
 
@@ -113,7 +98,9 @@ pub async fn metadata_handler(
                         }
                     }
                 }
-                let request_builder = request_builder.build().unwrap();
+                let request_builder = request_builder
+                    .build()
+                    .expect("request builder should always build a valid request");
                 match state
                     .http_client
                     .execute(
@@ -265,8 +252,7 @@ pub async fn metadata_handler(
         if let Some(cache_control_header) = wrapped_response
             .headers
             .get(header::CACHE_CONTROL)
-            .and_then(|v| v.to_str().ok())
-            .and_then(|s| s.parse().ok())
+            .and_then(|v| v.to_str().ok()?.parse().ok())
         {
             response
                 .headers_mut()
@@ -275,8 +261,7 @@ pub async fn metadata_handler(
         if let Some(etag_header) = wrapped_response
             .headers
             .get(header::ETAG)
-            .and_then(|v| v.to_str().ok())
-            .and_then(|s| s.parse().ok())
+            .and_then(|v| v.to_str().ok()?.parse().ok())
         {
             response.headers_mut().append(header::ETAG, etag_header);
         }

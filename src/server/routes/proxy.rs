@@ -51,11 +51,10 @@ pub struct ProxyResponseWrapper {
 
 impl CacheSize for ProxyResponseWrapper {
     fn cache_size_shallow(&self) -> usize {
-        let mut size = std::mem::size_of::<Self>();
-        size += self.body.len();
-        size += self.headers.capacity();
-        size += self.content_type.len();
-        size
+        std::mem::size_of::<Self>()
+            + self.body.len()
+            + self.headers.capacity()
+            + self.content_type.len()
     }
 }
 
@@ -125,7 +124,9 @@ pub async fn proxy_handler(
                         }
                     }
                 }
-                let request_builder = request_builder.build().unwrap();
+                let request_builder = request_builder
+                    .build()
+                    .expect("request builder should always build a valid request");
                 match state
                     .http_client
                     .execute(
@@ -198,8 +199,7 @@ pub async fn proxy_handler(
             if let Some(content_type) = response
                 .headers()
                 .get(header::CONTENT_TYPE)
-                .and_then(|v| v.to_str().ok())
-                .and_then(|s| s.parse().ok())
+                .and_then(|v| v.to_str().ok()?.parse().ok())
             {
                 if !mime_util::is_mime_allowed(
                     &content_type,
@@ -385,7 +385,8 @@ pub async fn proxy_handler(
             // Prepare response wrapper for caching/consumption.
             let wrapper = ProxyResponseWrapper {
                 body: response_body,
-                content_type: HeaderValue::from_str(content_type.essence_str()).unwrap(),
+                content_type: HeaderValue::from_str(content_type.essence_str())
+                    .expect("header value from mime essence string should always be valid"),
                 headers: response_headers,
             };
             if cache_policy.is_storable() {
@@ -412,8 +413,7 @@ pub async fn proxy_handler(
         if let Some(cache_control_header) = response_wrapper
             .headers
             .get(header::CACHE_CONTROL)
-            .and_then(|v| v.to_str().ok())
-            .and_then(|s| s.parse().ok())
+            .and_then(|v| v.to_str().ok()?.parse().ok())
         {
             response
                 .headers_mut()
@@ -422,8 +422,7 @@ pub async fn proxy_handler(
         if let Some(etag_header) = response_wrapper
             .headers
             .get(header::ETAG)
-            .and_then(|v| v.to_str().ok())
-            .and_then(|s| s.parse().ok())
+            .and_then(|v| v.to_str().ok()?.parse().ok())
         {
             response.headers_mut().append(header::ETAG, etag_header);
         }
