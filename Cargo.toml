@@ -1,45 +1,59 @@
 [package]
-version = "0.2.3"
-name = "aigis-bin"
-description = "Binary for Aigis, a simple and configurable content proxy."
+name = "aigis"
+description = "A simple and configurable content proxy."
 authors = ["Blooym"]
+version = "0.3.0"
 categories = ["web-programming::http-server", "multimedia::images"]
-license = "MIT OR Apache-2.0"
+license = "AGPL-3.0-only"
 keywords = ["proxy"]
 repository = "https://github.com/Blooym/aigis"
-rust-version = "1.85"
 edition = "2024"
-
-[workspace]
-members = ["crates/core"]
-
-[[bin]]
-name = "aigis"
-path = "crates/cli/src/main.rs"
 
 [profile.release]
 lto = true
 codegen-units = 1
-strip = true
 
 [features]
-default = ["rustls-tls", "cache-moka"]
-# TLS Backends
-rustls-tls = ["aigis/rustls-tls"]
-native-tls = ["aigis/native-tls"]
-# Caching Backends
-cache-moka = ["aigis/cache-moka"]
-cache-cacache = ["aigis/cache-cacache"]
+default = ["rustls-tls"]
+rustls-tls = ["reqwest/rustls-tls"]
+native-tls = ["reqwest/native-tls"]
 
 [dependencies]
-anyhow = "1.0.97"
-aigis = { version = "0.2.3", path = "crates/core", default-features = false }
-bytesize = "2.0.1"
-clap = { version = "4.5.38", features = ["derive", "env"] }
+anyhow = { version = "1.0.100", features = ["backtrace"] }
+axum = { version = "0.8.6", features = ["http2", "tracing"] }
+bytesize = "2.1.0"
+clap = { version = "4.5.50", features = ["derive", "env"] }
+directories = "6.0.0"
 dotenvy = "0.15.7"
-tokio = { version = "1.45.1", features = [
-    "macros",
-    "rt-multi-thread",
-    "parking_lot",
+futures = "0.3.31"
+http-cache-semantics = { version = "2.1.0", features = ["reqwest"] }
+image = { version = "0.25.8", features = ["serde"] }
+infer = "0.19.0"
+mime = "0.3.17"
+moka = { version = "0.12.11", features = ["future", "logging"] }
+reqwest = { version = "0.12.24", default-features = false, features = [
+    "charset",
+    "http2",
+    "socks",
+    "stream",
+    "system-proxy",
 ] }
-tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
+scraper = "0.24.0"
+serde = { version = "1.0.228", features = ["derive"] }
+tokio = { version = "1.48.0", features = [
+    "macros",
+    "net",
+    "parking_lot",
+    "rt-multi-thread",
+    "signal",
+    "time",
+] }
+tower-http = { version = "0.6.6", features = [
+    "catch-panic",
+    "normalize-path",
+    "timeout",
+    "trace",
+] }
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
+url = "2.5.7"

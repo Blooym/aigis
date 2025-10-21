@@ -13,8 +13,8 @@ RUN apk add --no-cache --update build-base
 
 # Pre-cache cargo dependencies.
 COPY ["Cargo.toml", "Cargo.lock", "./"]
-COPY crates ./crates
-RUN cargo build --release --bin aigis
+COPY src ./src
+RUN cargo build --release
 
 # -----------
 #   RUNTIME
