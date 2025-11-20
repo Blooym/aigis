@@ -5,11 +5,12 @@ use crate::server::{
 };
 use axum::{
     Json,
-    body::Body,
+    body::{Body, Bytes},
     extract::{Path, State},
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
 };
+use futures::StreamExt;
 use http_cache_semantics::CachePolicy;
 use reqwest::header;
 use scraper::{Html, Selector};
@@ -82,7 +83,7 @@ pub async fn metadata_handler(
         hasher.finish()
     };
 
-    let wrapped_response = match state.response_cache.get(&cache_key).await {
+    let response_wrapper = match state.response_cache.get(&cache_key).await {
         Some((CachedResponse::Metadata(response_wrapper), _))
             if !response_wrapper.cache_policy.is_stale(SystemTime::now()) =>
         {
@@ -198,20 +199,42 @@ pub async fn metadata_handler(
             };
 
             let get_meta_tag = {
-                // Fetch the page text.
-                //
-                // TODO: Cap to max size.
-                let page = response.text().await.map_err(|err| {
-                    warn!("Failed to read page content: {err:?}");
-                    (
-                        StatusCode::BAD_GATEWAY,
-                        Json(ErrorResponse {
-                            message: "Failed to read response from upstream server.",
-                        }),
-                    )
-                })?;
+                let response_body = {
+                    let mut buffer = Vec::with_capacity(
+                        response
+                            .content_length()
+                            .map(|len| {
+                                len.min(state.server_settings.proxy_settings.max_content_length)
+                                    as usize
+                            })
+                            .unwrap_or_default(),
+                    );
+                    let mut stream = response.bytes_stream();
+                    while let Some(chunk_result) = stream.next().await {
+                        let chunk = chunk_result.map_err(|_| {
+                        (
+                            StatusCode::BAD_GATEWAY,
+                            Json(ErrorResponse {
+                                message: "Something went wrong whilst obtaining the content from upstream.",
+                            }),
+                        )
+                    })?;
+                        if buffer.len() as u64 + chunk.len() as u64
+                            > state.server_settings.proxy_settings.max_content_length
+                        {
+                            return Err((
+                                StatusCode::PAYLOAD_TOO_LARGE,
+                                Json(ErrorResponse {
+                                    message: "Content exceeded maximum allowed size.",
+                                }),
+                            ));
+                        }
+                        buffer.extend_from_slice(&chunk);
+                    }
+                    Bytes::from(buffer)
+                };
 
-                let document = Html::parse_document(&page);
+                let document = Html::parse_document(&String::from_utf8_lossy(&response_body));
                 let meta: HashMap<String, String> = document
                     .select(&META_SELECTOR)
                     .filter_map(|element| {
@@ -221,10 +244,10 @@ pub async fn metadata_handler(
                         Some((property.to_string(), content.to_string()))
                     })
                     .collect();
+
                 move |keys: &[&str]| -> Option<String> {
                     keys.iter()
-                        .find_map(|key| meta.get(*key))
-                        .map(|s| s.trim().to_owned())
+                        .find_map(|key| meta.get(*key).map(|s| s.trim().to_owned()))
                 }
             };
 
@@ -288,7 +311,7 @@ pub async fn metadata_handler(
         }
     };
 
-    let mut response = wrapped_response.response.into_response();
-    response.headers_mut().extend(wrapped_response.headers);
+    let mut response = response_wrapper.response.into_response();
+    response.headers_mut().extend(response_wrapper.headers);
     Ok(response)
 }

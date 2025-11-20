@@ -8,12 +8,11 @@ A simple and configurable content proxy.
 
 ## Features
 
-* [x] Content transformations via query parameters.
-  * [x] Image format and size.
-* [x] Request caching that respects `Cache-Control` headers.
-* [x] `Content-Type` allow-list with wildcard support.
-* [x] 'Embed' endpoint that turns OpenGraph meta tags into JSON. 
-* [ ] Subdomain wildcard support for `--proxy-allowed-domains`.
+* Content transformations via query parameters.
+  * Image format and size.
+* Request caching that respects `Cache-Control` headers.
+* `Content-Type` allow-list with wildcard support.
+* 'Embed' endpoint that turns OpenGraph meta tags into JSON. 
 
 ## Installing
 
