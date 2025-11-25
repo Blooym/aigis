@@ -81,7 +81,7 @@ pub async fn proxy_handler(
         hasher.finish()
     };
 
-    let response_wrapper = match state.response_cache.get(&cache_key).await {
+    let (response_wrapper, cache_hit) = match state.response_cache.get(&cache_key).await {
         Some((CachedResponse::Proxy(response_wrapper), _))
             if !response_wrapper.cache_policy.is_stale(SystemTime::now()) =>
         {
@@ -106,10 +106,13 @@ pub async fn proxy_handler(
                         .as_secs()
                         .into(),
                 );
+                response
+                    .headers_mut()
+                    .insert(AIGIS_CACHE_HEADER, AIGIS_CACHE_HEADER_VALUE_HIT);
                 return Ok(response);
             }
             // Non-conditional, proceed as regular cached request.
-            response_wrapper
+            (response_wrapper, true)
         }
         _ => {
             // If allowed_domains is set, check if this domain is included.
@@ -410,7 +413,6 @@ pub async fn proxy_handler(
             // Store specific headers for re-sending from cache.
             let mut response_headers_to_cache = HeaderMap::new();
             response_headers_to_cache.insert(header::ETAG, cache_key.into());
-            response_headers_to_cache.insert(AIGIS_CACHE_HEADER, AIGIS_CACHE_HEADER_VALUE_HIT);
             response_headers_to_cache.insert(
                 header::CONTENT_TYPE,
                 HeaderValue::from_str(content_type.essence_str())
@@ -441,7 +443,7 @@ pub async fn proxy_handler(
                     )
                     .await;
             }
-            wrapper
+            (wrapper, false)
         }
     };
 
@@ -455,5 +457,10 @@ pub async fn proxy_handler(
             .as_secs()
             .into(),
     );
+    if cache_hit {
+        response
+            .headers_mut()
+            .insert(AIGIS_CACHE_HEADER, AIGIS_CACHE_HEADER_VALUE_HIT);
+    }
     Ok(response)
 }

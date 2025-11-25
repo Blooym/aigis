@@ -83,7 +83,7 @@ pub async fn metadata_handler(
         hasher.finish()
     };
 
-    let response_wrapper = match state.response_cache.get(&cache_key).await {
+    let (response_wrapper, cache_hit) = match state.response_cache.get(&cache_key).await {
         Some((CachedResponse::Metadata(response_wrapper), _))
             if !response_wrapper.cache_policy.is_stale(SystemTime::now()) =>
         {
@@ -107,10 +107,13 @@ pub async fn metadata_handler(
                         .as_secs()
                         .into(),
                 );
+                response
+                    .headers_mut()
+                    .insert(AIGIS_CACHE_HEADER, AIGIS_CACHE_HEADER_VALUE_HIT);
                 return Ok(response);
             }
             // Non-conditional, proceed as regular cached request.
-            response_wrapper
+            (response_wrapper, true)
         }
         _ => {
             let (response, cache_policy) = {
@@ -305,7 +308,7 @@ pub async fn metadata_handler(
                     .await;
             }
 
-            wrapper
+            (wrapper, false)
         }
     };
 
@@ -319,5 +322,10 @@ pub async fn metadata_handler(
             .as_secs()
             .into(),
     );
+    if cache_hit {
+        response
+            .headers_mut()
+            .insert(AIGIS_CACHE_HEADER, AIGIS_CACHE_HEADER_VALUE_HIT);
+    }
     Ok(response)
 }
