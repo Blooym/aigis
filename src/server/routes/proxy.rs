@@ -2,7 +2,7 @@ use crate::server::{
     AppState,
     cache::{CacheSize, CachedResponse},
     mime_util,
-    routes::ErrorResponse,
+    routes::{AIGIS_CACHE_HEADER, AIGIS_CACHE_HEADER_VALUE_HIT, ErrorResponse},
 };
 use axum::{
     Json,
@@ -22,7 +22,7 @@ use std::{
     io::{BufReader, BufWriter, Cursor},
     str::FromStr,
     sync::Arc,
-    time::{Duration, SystemTime},
+    time::SystemTime,
 };
 use tracing::{debug, warn};
 use url::Url;
@@ -97,9 +97,7 @@ pub async fn proxy_handler(
                     .status(StatusCode::NOT_MODIFIED)
                     .body(Body::empty())
                     .unwrap();
-                response
-                    .headers_mut()
-                    .extend(response_wrapper.headers.clone());
+                response.headers_mut().extend(response_wrapper.headers);
                 response.headers_mut().insert(
                     header::AGE,
                     response_wrapper
@@ -412,6 +410,7 @@ pub async fn proxy_handler(
             // Store specific headers for re-sending from cache.
             let mut response_headers_to_cache = HeaderMap::new();
             response_headers_to_cache.insert(header::ETAG, cache_key.into());
+            response_headers_to_cache.insert(AIGIS_CACHE_HEADER, AIGIS_CACHE_HEADER_VALUE_HIT);
             response_headers_to_cache.insert(
                 header::CONTENT_TYPE,
                 HeaderValue::from_str(content_type.essence_str())
@@ -437,8 +436,7 @@ pub async fn proxy_handler(
                         cache_key,
                         (
                             CachedResponse::Proxy(wrapper.clone()),
-                            wrapper.cache_policy.time_to_live(SystemTime::now())
-                                + Duration::from_secs(60),
+                            wrapper.cache_policy.time_to_live(SystemTime::now()),
                         ),
                     )
                     .await;
@@ -449,5 +447,13 @@ pub async fn proxy_handler(
 
     let mut response = Response::new(Body::from(response_wrapper.body));
     response.headers_mut().extend(response_wrapper.headers);
+    response.headers_mut().insert(
+        header::AGE,
+        response_wrapper
+            .cache_policy
+            .age(SystemTime::now())
+            .as_secs()
+            .into(),
+    );
     Ok(response)
 }

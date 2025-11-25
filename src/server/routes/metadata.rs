@@ -1,7 +1,7 @@
 use crate::server::{
     AppState,
     cache::{CacheSize, CachedResponse},
-    routes::ErrorResponse,
+    routes::{AIGIS_CACHE_HEADER, AIGIS_CACHE_HEADER_VALUE_HIT, ErrorResponse},
 };
 use axum::{
     Json,
@@ -19,7 +19,7 @@ use std::{
     collections::HashMap,
     hash::{DefaultHasher, Hash, Hasher},
     sync::{Arc, LazyLock},
-    time::{Duration, SystemTime},
+    time::SystemTime,
 };
 use tracing::{debug, warn};
 use url::Url;
@@ -98,9 +98,7 @@ pub async fn metadata_handler(
                     .status(StatusCode::NOT_MODIFIED)
                     .body(Body::empty())
                     .unwrap();
-                response
-                    .headers_mut()
-                    .extend(response_wrapper.headers.clone());
+                response.headers_mut().extend(response_wrapper.headers);
                 response.headers_mut().insert(
                     header::AGE,
                     response_wrapper
@@ -281,6 +279,7 @@ pub async fn metadata_handler(
 
             let mut response_headers_to_cache = HeaderMap::new();
             response_headers_to_cache.insert(header::ETAG, cache_key.into());
+            response_headers_to_cache.insert(AIGIS_CACHE_HEADER, AIGIS_CACHE_HEADER_VALUE_HIT);
             if let Some(cache_control_header) = response_headers
                 .get(header::CACHE_CONTROL)
                 .and_then(|v| v.to_str().ok()?.parse().ok())
@@ -300,8 +299,7 @@ pub async fn metadata_handler(
                         cache_key,
                         (
                             CachedResponse::Metadata(wrapper.clone()),
-                            wrapper.cache_policy.time_to_live(SystemTime::now())
-                                + Duration::from_secs(60),
+                            wrapper.cache_policy.time_to_live(SystemTime::now()),
                         ),
                     )
                     .await;
@@ -313,5 +311,13 @@ pub async fn metadata_handler(
 
     let mut response = response_wrapper.response.into_response();
     response.headers_mut().extend(response_wrapper.headers);
+    response.headers_mut().insert(
+        header::AGE,
+        response_wrapper
+            .cache_policy
+            .age(SystemTime::now())
+            .as_secs()
+            .into(),
+    );
     Ok(response)
 }
