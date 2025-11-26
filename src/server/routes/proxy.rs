@@ -344,7 +344,7 @@ pub async fn proxy_handler(
             // image changes, apply them.
             match matcher_type {
                 MatcherType::Image
-                    if request_query.0.size.is_some() || request_query.0.format.is_some() =>
+                    if request_query.size.is_some() || request_query.format.is_some() =>
                 {
                     let Some(image_format) = ImageFormat::from_mime_type(content_type) else {
                         return Err((
@@ -369,7 +369,7 @@ pub async fn proxy_handler(
                     })?;
 
                     // Conditionally apply resizing if requested.
-                    if let Some(resize) = request_query.0.size {
+                    if let Some(resize) = request_query.size {
                         if resize > state.server_settings.proxy_settings.max_rescale_resolution {
                             return Err((
                                 StatusCode::BAD_REQUEST,
@@ -385,7 +385,7 @@ pub async fn proxy_handler(
                     // Write image using either the original or requested image format
                     // then overwrite the request body and content_type values.
                     let original_size = response_body.len();
-                    let output_format = request_query.0.format.unwrap_or(image_format);
+                    let output_format = request_query.format.unwrap_or(image_format);
                     let mut buffer = Vec::with_capacity(original_size);
                     image
                         .write_to(&mut BufWriter::new(Cursor::new(&mut buffer)), output_format)
