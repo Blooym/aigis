@@ -88,8 +88,9 @@ pub async fn proxy_handler(
             // Check if conditional request and handle accordingly.
             if request_headers
                 .get(header::IF_NONE_MATCH)
-                .and_then(|v| v.to_str().ok())
-                .map(|etag| etag == cache_key.to_string())
+                .and_then(|value| value.to_str().ok())
+                .and_then(|etag| etag.parse::<u64>().ok())
+                .map(|etag| etag == cache_key)
                 .unwrap_or(false)
             {
                 // Return 304 Not Modified
