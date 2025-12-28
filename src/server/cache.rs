@@ -1,20 +1,20 @@
 use crate::server::routes::{MetadataResponseWrapper, ProxyResponseWrapper};
-use moka::{Expiry, future::Cache as MokaCache};
+use moka::{Expiry, future::Cache as MokaCache, policy::EvictionPolicy};
 use std::time::{Duration, Instant};
+
+type CacheKey = u64;
+type CacheValue = (CachedResponse, Duration);
+pub type Cache = MokaCache<CacheKey, CacheValue>;
+
+pub trait CacheSize {
+    fn cache_size_shallow(&self) -> usize;
+}
 
 #[derive(Clone)]
 pub enum CachedResponse {
     Metadata(MetadataResponseWrapper),
     Proxy(ProxyResponseWrapper),
 }
-
-pub trait CacheSize {
-    fn cache_size_shallow(&self) -> usize;
-}
-
-type CacheKey = u64;
-type CacheValue = (CachedResponse, Duration);
-pub type Cache = MokaCache<CacheKey, CacheValue>;
 
 struct CacheExpiry;
 
@@ -29,9 +29,8 @@ impl Expiry<CacheKey, CacheValue> for CacheExpiry {
     }
 }
 
-pub fn build_response_cache(max_capacity: u64) -> Cache {
-    const REMOVE_IF_IDLE_FOR_SECONDS: u64 = 3600;
-    Cache::builder()
+pub fn build_response_cache(max_capacity: u64, idle_expiry: Option<Duration>) -> Cache {
+    let mut builder = Cache::builder()
         .weigher(|_key, value| -> u32 {
             match &value.0 {
                 CachedResponse::Proxy(res) => {
@@ -43,7 +42,10 @@ pub fn build_response_cache(max_capacity: u64) -> Cache {
             }
         })
         .expire_after(CacheExpiry)
-        .time_to_idle(Duration::from_secs(REMOVE_IF_IDLE_FOR_SECONDS))
-        .max_capacity(max_capacity)
-        .build()
+        .eviction_policy(EvictionPolicy::lru())
+        .max_capacity(max_capacity);
+    if let Some(idle_expiry) = idle_expiry {
+        builder = builder.time_to_idle(idle_expiry);
+    }
+    builder.build()
 }

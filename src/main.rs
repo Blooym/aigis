@@ -6,7 +6,7 @@ use clap::Parser;
 use core::net::SocketAddr;
 use dotenvy::dotenv;
 use mime::{IMAGE_STAR, Mime};
-use server::{ProxySettings, Server, Settings, UpstreamSettings};
+use server::{CacheSettings, ProxySettings, Server, Settings, UpstreamSettings};
 use tracing_subscriber::EnvFilter;
 use url::Url;
 
@@ -21,21 +21,25 @@ struct Arguments {
     )]
     address: SocketAddr,
 
-    /// Maximum waiting time for incoming requests before aborting (in seconds).
+    /// Maximum waiting time for before all incoming requests are aborted.
     #[arg(
         long = "request-timeout",
         env = "AIGIS_REQUEST_TIMEOUT",
-        default_value_t = 15
+        default_value = "15s"
     )]
-    request_timeout: u64,
+    request_timeout: humantime::Duration,
 
-    /// Maximum waiting time for upstream requests before aborting (in seconds).
+    /// The proxy to use when making requests to upstreams. Credentials can be passed as https://user:pass@example.com if needed.
+    #[arg(long = "upstream-request-proxy", env = "AIGIS_REQUEST_PROXY")]
+    upstream_request_proxy: Option<Url>,
+
+    /// Maximum waiting time before requests to upstreams are aborted.
     #[arg(
         long = "upstream-request-timeout",
         env = "AIGIS_UPSTREAM_REQUEST_TIMEOUT",
-        default_value_t = 10
+        default_value = "10s"
     )]
-    upstream_request_timeout: u64,
+    upstream_request_timeout: humantime::Duration,
 
     /// Maximum amount of redirects to follow when making upstream requests before aborting.
     #[arg(
@@ -45,8 +49,7 @@ struct Arguments {
     )]
     upstream_max_redirects: usize,
 
-    /// A list of header names that should be passed from the original request to the upstream if they are set.
-    /// Leave empty to not pass any headers.
+    /// Headers to pass from the original request to the upstream if they are present.
     #[arg(
         long = "upstream-forwarded-headers",
         env = "AIGIS_UPSTREAM_FORWARDED_HEADERS",
@@ -54,7 +57,7 @@ struct Arguments {
     )]
     upstream_forwarded_headers: Option<Vec<String>>,
 
-    /// DANGEROUS: Allow self-signed/invalid/forged TLS certificates when making upstream requests.
+    /// Allow invalid TLS certificates when making upstream requests (DANGEROUS).
     #[arg(
         long = "upstream-allow-invalid-certs",
         env = "AIGIS_UPSTREAM_ALLOW_INVALID_CERTS",
@@ -62,10 +65,11 @@ struct Arguments {
     )]
     upstream_allow_invalid_certs: bool,
 
-    /// Maximum Content-Length that can be proxied by this server.
+    /// Maximum file size that can be proxied by this server.
     ///
-    /// Note: this is currently not a well-rounded check and relies on the server
-    /// sending an honest header. This may be improved in the future.
+    /// This limit is enforced both via the Content-Length header and during download.
+    /// If the upstream server provides an inaccurate Content-Length or the actual
+    /// content exceeds this limit, the proxy will abort the request.
     #[arg(
         long = "proxy-max-content-length",
         env = "AIGIS_PROXY_MAX_CONTENT_LENGTH",
@@ -102,6 +106,25 @@ struct Arguments {
         default_value_t = 1024
     )]
     proxy_max_rescale_res: u32,
+
+    /// Maximum amount of system memory allowed to be used by the cache at any time.
+    #[arg(
+        long = "cache-max-size",
+        env = "AIGIS_CACHE_MAX_SIZE",
+        default_value = "1GB"
+    )]
+    cache_max_size: ByteSize,
+
+    /// Time until a cache entry is considered "idle" and is evicted before it's actual expiry.
+    ///
+    /// When this is left empty, this behaviour is disabled and expiry will only happen when the item
+    /// actually due to expire.
+    #[arg(
+        long = "cache-time-to-idle",
+        env = "AIGIS_CACHE_TIME_TO_IDLE",
+        default_value = "1h"
+    )]
+    cache_time_to_idle: Option<humantime::Duration>,
 }
 
 #[tokio::main]
@@ -119,8 +142,7 @@ async fn main() -> Result<()> {
     }
 
     Server::new(Settings {
-        request_timeout: args.request_timeout,
-        request_proxy: None,
+        request_timeout: *args.request_timeout,
         proxy_settings: ProxySettings {
             allowed_domains: args.proxy_allowed_domains.map(|d| d.into_boxed_slice()),
             allowed_mimetypes: args.proxy_allowed_mimetypes.into_boxed_slice(),
@@ -133,7 +155,12 @@ async fn main() -> Result<()> {
             forwarded_headers: args
                 .upstream_forwarded_headers
                 .map(|h| h.into_boxed_slice()),
-            request_timeout: args.request_timeout,
+            request_timeout: *args.request_timeout,
+            request_proxy: args.upstream_request_proxy,
+        },
+        cache_settings: CacheSettings {
+            max_size: args.cache_max_size.as_u64(),
+            time_to_idle: args.cache_time_to_idle.map(|t| *t),
         },
     })?
     .start(&args.address)

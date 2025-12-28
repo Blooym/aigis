@@ -22,7 +22,7 @@ use cache::{Cache, build_response_cache};
 use core::{net::SocketAddr, time::Duration};
 use http_client::{BuildHttpClientArgs, HttpClient, build_http_client};
 use mime::Mime;
-use reqwest::{Proxy, header};
+use reqwest::{Proxy, StatusCode, header};
 use std::sync::Arc;
 use tokio::{net::TcpListener, signal};
 use tower_http::{
@@ -39,58 +39,30 @@ pub struct Server {
     router: Router,
 }
 
-/// Settings to run the Aigis server with.
 pub struct Settings {
-    /// How many seconds that can elapse before a request is abandoned for taking too long.
-    pub request_timeout: u64,
-
-    /// The Socks5 proxy to use for all outgoing requests.
-    pub request_proxy: Option<Url>,
-
-    /// See [`UpstreamSettings`].
+    pub request_timeout: Duration,
     pub upstream_settings: UpstreamSettings,
-
-    /// See [`ProxySettings`].
     pub proxy_settings: ProxySettings,
+    pub cache_settings: CacheSettings,
 }
 
-/// Configuration options used for the `proxy` route.
 pub struct ProxySettings {
-    /// [`Mime`]s that are allowed to be proxied, checked against the Content-Type header
-    /// received from the upstream server.
-    ///
-    /// Supports type wildcards such as 'image/*'.
     pub allowed_mimetypes: Box<[Mime]>,
-
-    /// The maximum Content-Lenth that can be proxied.
-    /// Anything larger than this value will not be sent and an error will shown instead.
     pub max_content_length: u64,
-
-    /// [`Url`]s that are allowed to be proxied.
-    ///
-    /// Does not support subdomain wildcards, each domain must be added seperately.
     pub allowed_domains: Option<Box<[Url]>>,
-
-    /// The maximum resolution that can be requested for content that supports resizing.
     pub max_rescale_resolution: u32,
 }
 
-/// Configuration options used when making any call to an upstream service regardless of route.
+pub struct CacheSettings {
+    pub max_size: u64,
+    pub time_to_idle: Option<Duration>,
+}
 pub struct UpstreamSettings {
-    /// Headers that will be passed on from the client to the upstream server verbatim.
     pub forwarded_headers: Option<Box<[String]>>,
-
-    /// Whether to allow invalid/expired/forged TLS certificates when making upstream requests.
-    ///
-    /// **Enabling this is dangerous and is usually not necessary.**
     pub allow_invalid_certs: bool,
-
-    /// How many seconds that can elapse after sending a request to an upstream server before it's abandoned
-    /// and considered failed.
-    pub request_timeout: u64,
-
-    /// The maximum amount of redirects to follow when making a request to an upstream server before abandoning the request.
+    pub request_timeout: Duration,
     pub max_redirects: usize,
+    pub request_proxy: Option<Url>,
 }
 
 struct AppState {
@@ -112,9 +84,10 @@ impl Server {
                     .make_span_with(trace::DefaultMakeSpan::new().level(Level::INFO))
                     .on_response(trace::DefaultOnResponse::new().level(Level::INFO)),
             )
-            .layer(TimeoutLayer::new(Duration::from_secs(
+            .layer(TimeoutLayer::with_status_code(
+                StatusCode::REQUEST_TIMEOUT,
                 settings.request_timeout,
-            )))
+            ))
             .layer(NormalizePathLayer::trim_trailing_slash())
             .layer(CatchPanicLayer::new())
             .layer(CompressionLayer::new().compress_when(SizeAbove::default()))
@@ -123,16 +96,18 @@ impl Server {
                 http_client: build_http_client(BuildHttpClientArgs {
                     allow_invalid_certs: settings.upstream_settings.allow_invalid_certs,
                     max_redirects: settings.upstream_settings.max_redirects,
-                    request_timeout: Duration::from_secs(
-                        settings.upstream_settings.request_timeout,
-                    ),
+                    request_timeout: settings.upstream_settings.request_timeout,
                     proxy: settings
+                        .upstream_settings
                         .request_proxy
                         .as_ref()
                         .map(|p| Proxy::all(p.as_str()))
                         .transpose()?,
                 })?,
-                response_cache: build_response_cache(50 * 1024 * 1024),
+                response_cache: build_response_cache(
+                    settings.cache_settings.max_size,
+                    settings.cache_settings.time_to_idle,
+                ),
                 server_settings: settings,
             }));
 
