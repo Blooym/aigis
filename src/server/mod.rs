@@ -27,7 +27,7 @@ use std::sync::Arc;
 use tokio::{net::TcpListener, signal};
 use tower_http::{
     catch_panic::CatchPanicLayer,
-    compression::{CompressionLayer, predicate::SizeAbove},
+    compression::CompressionLayer,
     normalize_path::NormalizePathLayer,
     timeout::TimeoutLayer,
     trace::{self, TraceLayer},
@@ -82,6 +82,7 @@ impl Server {
             .layer(
                 TraceLayer::new_for_http()
                     .make_span_with(trace::DefaultMakeSpan::new().level(Level::INFO))
+                    .on_request(trace::DefaultOnRequest::new().level(Level::INFO))
                     .on_response(trace::DefaultOnResponse::new().level(Level::INFO)),
             )
             .layer(TimeoutLayer::with_status_code(
@@ -90,7 +91,7 @@ impl Server {
             ))
             .layer(NormalizePathLayer::trim_trailing_slash())
             .layer(CatchPanicLayer::new())
-            .layer(CompressionLayer::new().compress_when(SizeAbove::default()))
+            .layer(CompressionLayer::new())
             .layer(axum_middleware::from_fn(Self::header_middleware))
             .with_state(Arc::new(AppState {
                 http_client: build_http_client(BuildHttpClientArgs {
